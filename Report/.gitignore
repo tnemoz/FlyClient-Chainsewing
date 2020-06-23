@@ -1,0 +1,14 @@
+# Not staging files created by compilation
+main-blx.bib
+*.aux
+*.pdf
+*.log
+*.bbl
+*.blg
+*.out
+*.xml
+*.thm
+*.toc
+
+# Adding figures
+!figures/*

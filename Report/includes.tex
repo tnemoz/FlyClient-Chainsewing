@@ -1,0 +1,84 @@
+\usepackage[english]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[binary-units=true]{siunitx} % Units formatting
+\usepackage[a4paper,hmargin=2.8cm,vmargin=2.0cm,includeheadfoot]{geometry}
+\usepackage{tabularx,longtable,multirow,subfigure,caption}%hangcaption
+\usepackage{fncylab} %formatting of labels
+\usepackage{fancyhdr} % page layout
+\usepackage{url}
+\usepackage{graphicx}
+\usepackage[pdftex,hypertexnames=false,colorlinks]{hyperref} % provide links in pdf
+\hypersetup{
+  pdftitle={\reporttitle},
+  pdfauthor={\reportauthor},
+  pdfsubject={}, 
+  pdfkeywords={}, 
+  pdfstartview=FitH,
+  pdfpagemode={UseOutlines},% None, FullScreen, UseOutlines
+  bookmarksnumbered=true, bookmarksopen=true, colorlinks,
+    citecolor=black,%
+    filecolor=black,%
+    linkcolor=black,%
+    urlcolor=black
+}
+\usepackage[all]{hypcap}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage[standard]{ntheorem}
+\usepackage[linguistics]{forest}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows,calc,fit,backgrounds,shapes.multipart, positioning, snakes}
+\tikzstyle{block} = [draw, text centered, text width=.2cm, text height=.2cm]
+\usepackage{pgfplots}
+\usepackage[
+    backend=bibtex,
+    citestyle=numeric-comp,
+    sorting=nty,
+    backref=true
+]{biblatex}
+\usepackage{csquotes}
+\addbibresource{main.bib}
+
+%%% Default fonts
+\renewcommand*{\rmdefault}{bch}
+\renewcommand*{\ttdefault}{cmtt}
+
+
+
+%%% Default settings (page layout)
+\setlength{\parindent}{0em}  % indentation of paragraph
+
+\setlength{\headheight}{14.5pt}
+\pagestyle{fancy}
+\renewcommand{\chaptermark}[1]{\markboth{\chaptername\ \thechapter.\ #1}{}} 
+
+\fancyfoot[ER,OL]{\sffamily\textbf{\thepage}}%Page no. in the left on odd pages and on right on even pages
+\fancyfoot[OC,EC]{\sffamily }
+\renewcommand{\headrulewidth}{0.1pt}
+\renewcommand{\footrulewidth}{0.1pt}
+\captionsetup{margin=10pt,font=small,labelfont=bf}
+
+
+%--- chapter heading
+
+\def\@makechapterhead#1{%
+  \vspace*{10\p@}%
+  {\parindent \z@ \raggedright \sffamily
+    \interlinepenalty\@M
+    \Huge\bfseries \thechapter \space\space #1\par\nobreak
+    \vskip 30\p@
+  }}
+
+%---chapter heading for \chapter*  
+\def\@makeschapterhead#1{%
+  \vspace*{10\p@}%
+  {\parindent \z@ \raggedright
+    \sffamily
+    \interlinepenalty\@M
+    \Huge \bfseries  #1\par\nobreak
+    \vskip 30\p@
+  }}
+
+\allowdisplaybreaks

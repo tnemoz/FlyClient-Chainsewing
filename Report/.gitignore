@@ -9,6 +9,8 @@ main-blx.bib
 *.xml
 *.thm
 *.toc
+*.fdb_latexmk
+*.fls
 
 # Adding figures
 !figures/*

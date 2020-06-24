@@ -1,0 +1,332 @@
+    In this section, we aim to describe previous works which will then be used as a basis to start from to solve the problematic of this project.
+    \section{The principles of a blockchain}
+      \subsection{Definition of a PoW blockchain}
+        It is necessary to firstly describe what a blockchain actually is, since this is the central object we will be working on.
+        
+        Blockchains, and more specifically the Bitcoin one, were introduced in 2007 by \citeauthor{Bitcoin} \cite{Bitcoin}. Their goal was to design a payment system trusted by the users without the need of a centralized authority such as a bank. In order to do this, they replaced the trust the users had in the centralized authority with cryptographic proofs.
+        
+        First of all, let us describe what a block is. A Block is a data structure organized in two parts: the header of the block and the transactions of the block \cite{BitcoinHeader}. Let us begin by describing what transactions are.
+        
+        An user of the Bitcoin blockchain possesses a public/private key pair. While the private key is needed to ensure the emitter of a transaction is the one they claim they are, the public key (or more precisely, its hash) is the address of this user \cite{BitcoinTX}. A transaction corresponds to one array containing the inputs and one containing the outputs \cite{SoK}. Crucially, this means that a transaction can be hashed to uniquely identify it. Transactions are further described in \autoref{subsec:txs}.
+        
+        The block header contains what can be seen as metadata of the block, like the block version, the previous block header hash, etc. Some information are more important than the others however. These information are the previous block header hash, the Merkle Tree root, the current difficulty and a nonce. While the transactions within a block define the money transfers between the users, the block header is used to ensure the security of the protocol. The fundamental concept of a PoW blockchain is to trust the chain on which most of the computational power was spent. All four of these block header fields are meant to be used to solve this problem: the first three ones (along with the transactions within the block and their sorting) define a problem that a user has to solve, the last one is the proof that computational power was actually spent on this block.
+        
+        This problem is the following: given the previous block header hash \(p_h\) and the other data to be put in the header, like the Merkle Tree root for instance, one must find a nonce \(N\) such that:
+        
+        \[H\left(p_h\middle|\text{other data}\middle|N\right)\leqslant T\]
+        
+        where \(H\) is a hash function (SHA-256 for Bitcoin \cite{SoK}) and \(T\) is \(2^{d}\), \(d\) being the current difficulty of the network \cite{PoDL}. The best approach to find such a nonce is bruteforce \cite{PoDL}, that is testing all the possibilities until one finds a correct one. Hence, finding a solution to this problem proves that computational power was spent on its solve. The Proof of Work (PoW) is then defined as the nonce. Note that since everyone has access to the previous block header, the current difficulty of the network and the block's content, including its header, everyone can also verify the PoW of the block and potentially reject it if does not solve the problem.
+        
+        Since one trusts only blocks with valid PoW, it means that as long as more than half of the users cooperate according to the rules, then an adversary cannot create another chain as long as the main chain without putting blocks with invalid PoW. Such blocks will be called fake blocks. Hence, even though each user does not trust anyone, this system manages to make payments between user without a centralized authority.
+        
+        Two problems are to be immediately tackled however:
+        
+        \begin{itemize}
+          \item nothing incentivizes an user to try to solve the problem;
+          \item an user has no funds when they create a public/private key pair.
+        \end{itemize}
+        
+        Both these problems are solved by creating funds and transferring them to the one who solved the problem. By doing so, each user is incentivized to find the solution to the problem rather than to wait for it, and the creation of funds enables more users to perform money transfer once they have received some. This is further described in \autoref{subsec:txs}.
+        
+        Now that blocks have been defined, we can define what a \textit{blockchain} is. A blockchain is a data structure storing blocks. We design by blockchain the sequence of blocks linked together via their reference to the previous block header hash, just as a linked list. Blockchains are believed to be append-only: once a block has been mined, it is not possible to remove it from the chain. However, it does not mean that this block will be accepted by the consensus. This situation is explained more in details in \autoref{subsec:backbone}. Furthermore, it may be possible under very exceptional circumstances that the consensus chooses to fork the main chain, deleting \textit{de facto} the blocks that were mined after the fork point. This happened because of the DAO hack for instance \cite{DAO}.
+      
+      \subsection{Bitcoin transactions}
+        \label{subsec:txs}
+        In the original version of Bitcoin presented in \cite{Bitcoin}, there  were two kinds of different transactions: common transactions and coinbase transactions. Let us begin by describing the former.
+        
+        A common transaction takes as an input the output of a one or several previous transactions, be they coinbase or common. Such outputs are called unspent transaction output (UTXO) \cite{Survey}. A transaction can have several outputs, each to a different recipient. A fundamental rule has to be respected though: the sum of the inputs of a transaction has to be strictly greater than the sum of its outputs. Two reasons justify this. First of all, it is not allowed to spend more coins that one owns. The second reason is that each transaction induces a fee, which then goes to the miner of the block, that is the one who found the problem solution. A representation of two transactions can be found on \autoref{figure:txs}. Note that this representation does not take into account the fees. Furthermore, note that the transactions inputs are to be of the same emitter, since they can only use their own coins to pay, that is their own UTXOs.
+        
+        \begin{figure}[ht]
+          \centering
+          \begin{tikzpicture}[thick,scale=0.8, every node/.style={transform shape}]
+            \node (utxo1) at (0, 1) {\(\text{UTXO}_1\) (User A, 1 BTC)};
+            \node (utxo2) at (0, -1) {\(\text{UTXO}_2\) (User A, 2 BTC)};
+            \node (utxo3) at (0, -3) {\(\text{UTXO}_3\) (User B, 1 BTC)};
+            \node[right=of utxo1] (middle) {};
+            \node[right=of middle] (output) {};
+            \node[draw=none] (middleoutput) at ($(middle) - (0, 1)$) {};
+            \node[right=of middleoutput] (output2) {Output 2 (User B, 1 BTC)};
+            \node (output1) at ($(output2) + (0, 2)$) {Output 1 (User A, 0.5 BTC)};
+            \node (output3) at ($(output2) + (0, -2)$) {Output 3 (User C, 1.5 BTC)};
+            \node[right=of output2,draw=none] (newinputtemp) {};
+            \node[draw=none] (newinput1) at ($(newinputtemp) + (0, 1)$) {};
+            \node[draw=none] (newinput2) at ($(newinputtemp) + (0, -1)$) {};
+            \node[right=of newinput1] (result1) {Output 4 (User A, 1.5 BTC)};
+            \node[right=of newinput2] (result2) {Output 5 (User B, 0.5 BTC)};
+            
+            \draw (utxo1) -- ($(middle)$);
+            \draw (utxo2) -| ($(middle)$);
+            \draw ($(middleoutput)$) |- (output1);
+            \draw ($(middleoutput)$) -- (output2);
+            \draw ($(middleoutput)$) |- (output3);
+            \draw (utxo3) -| ($(newinput2)$);
+            \draw (output2) -| ($(newinput1)$);
+            \draw ($(newinput1)$) -- ($(newinput2)$);
+            \draw ($(newinput1)$) -- (result1);
+            \draw ($(newinput2)$) -- (result2);
+          \end{tikzpicture}
+          \caption{An example of two transactions}
+          \label{figure:txs}
+        \end{figure}
+        
+        The second kind of transaction are coinbase transactions \cite{Bitcoin}. They are special in the sense that they don't take any UTXO in input. A coinbase transaction is the transaction rewarding a miner for having mined a block. This is what incentivizes the miner to behave accordingly to the protocol \cite{Bitcoin, SoK}, and the only way to create coins.
+
+      \subsection{Simplified Payment Verification}
+        That said, is there a more efficient way to verify the presence of a transaction within the chain than storing every block? In order to solve this problem, \citeauthor{Bitcoin} proposed a method: the Simplified Payment Verification \cite{Bitcoin}.
+        
+        Every block header contains what is called the Merkle Tree root of the transactions it contains. A Merkle Tree is a balanced binary tree such that each leaf contains a hash, and each node that is not a leaf contains the hash of the concatenation of its children. An example of the construction of such a tree is given in \autoref{figure:merkleconstruct}, where \(|\) denotes concatenation and \(H\) is a cryptographic hash function that can be applied to a transaction.
+        
+        \begin{figure}[ht]
+          \centering
+          \begin{forest}
+            [Merkle Tree root
+              [\(H\left(H\left(\text{TX}_1\right)\middle|H\left(\text{TX}_2\right)\right)\)
+                [\(H\left(\text{TX}_1\right)\)[\(\text{TX}_1\)]]
+                [\(H\left(\text{TX}_2\right)\)[\(\text{TX}_2\)]]
+              ]
+              [\(H\left(H\left(\text{TX}_3\right)\middle|H\left(\text{TX}_4\right)\right)\)
+                [\(H\left(\text{TX}_3\right)\)[\(\text{TX}_3\)]]
+                [\(H\left(\text{TX}_4\right)\)[\(\text{TX}_4\)]]
+              ]
+            ]
+          \end{forest}
+          \caption{A Merkle Tree with four transactions}
+          \label{figure:merkleconstruct}
+        \end{figure}
+        
+        Such a tree can be used to provide efficient proofs that a given hash is included within it. Indeed, let us consider the Merkle Tree depicted in \autoref{figure:merkleconstruct} and let us assume that one wants a proof that \(\text{TX}_2\) belongs to this Merkle Tree, given that they know \(H\left(\text{TX}_2\right)\) and the Merkle Tree root. The prover would give them \(H\left(\text{TX}_1\right)\) and \(H\left(H\left(\text{TX}_3\right)\middle|H\left(\text{TX}_4\right)\right)\). The verifier would then check whether the hashes they know \enquote{hash up} to the Merkle Tree root.
+        
+        Note that it is impossible for an adversary to fake a proof of the inclusion of a transaction. Indeed, they would have to find \(h_2\) such that, given a hash \(h_1\) that they define:
+        
+        \[H\left(h_1\middle|h_2\right)=\text{Merkle Tree root}\]
+        
+        holds, which is believed to be computationally infeasible because of the pre-image resistance of \(H\).
+        
+        Putting things together, the Simplified Payment Verification proposed by \citeauthor{Bitcoin} consists in storing only the block headers and the transactions one is interested in, so that Merkle Tree proofs can be used.
+
+      \subsection{The Bitcoin backbone protocol}
+        \label{subsec:backbone}
+        Now that the main principles of a PoW blockchain have been described, we will describe the Bitcoin backbone protocol \cite{Backbone}. The Bitcoin backbone protocol formally describes the Bitcoin protocol and defines important properties and concepts for formal analysis of Bitcoin-based protocols. We won't go into details here since we will explicitly state our model and assumptions when proving our results. However, two important definition are given: \textit{persistence} and \textit{liveness}.
+        
+        \begin{Definition}[Persistence \cite{Backbone}]
+          There exists some natural number \(k\) such that, if \(k\) blocks are mined on top of a certain block, this block will be included in the local blockchain of every honest node with overwhelming probability and will stay on the blockchain permanently.
+        \end{Definition}
+        
+        In order to understand this definition, it is necessary to recall that network assumptions are to be made. It is very likely that two miners attempt and succeed to mine the same block in a short period of time. Note that this can't be the exact same block, since the coinbase transaction for instance is different. This corresponds to the situation depicted in \autoref{figure:fork}, where \(G\) represents the Genesis block, a snake line represents an arbitrary number of blocks and a straight line represents a link between two consecutive blocks. 
+        
+        \begin{figure}[ht]
+          \centering
+          \begin{tikzpicture}[decoration={snake}]
+            \node[block] (G) {};
+            \node[below of=G] {$G$};
+            \node[block, right=of G] (c) {};
+            \node[below of=c] {$c$};
+            \node[block, above right=of c] (cprime1) {};
+            \node[below of=cprime1] {$(c+1)'$};
+            \node[block, below right=of c] (c1) {};
+            \node[below of=c1] {$c+1$};
+            
+            \path[draw, decorate] (G) -- (c);
+            \path[draw] (cprime1.west) -- (c.north);
+            \path[draw] (c1.west) -- (c.south);
+          \end{tikzpicture}
+          \caption{A fork occuring on the blockchain}
+          \label{figure:fork}
+        \end{figure}
+        
+        In this case, both the miners will contact their connected peers in the network to inform them about this new block. From then, other miners will begin to work either on \(c+1\) or on \((c+1)'\). Note that a node that have heard of \(c+1\) already will not consider \((c+1)'\), since it does not add length to the chain they already know.
+        
+        It is possible that once again, the miners mine nearly at the same time, even though that's unlikely. Still, there will be a point where the period between the two mined blocks will be large enough for the piece of information to propagate through the network. The situation is depicted in \autoref{figure:acceptedfork}.
+        
+        \begin{figure}[ht]
+          \centering
+          \begin{tikzpicture}[decoration={snake}]
+            \node[block] (G) {};
+            \node[below of=G] {$G$};
+            \node[block, right=of G] (c) {};
+            \node[below of=c] {$c$};
+            \node[block, above right=of c] (cprime1) {};
+            \node[below of=cprime1] {$(c+1)'$};
+            \node[block, below right=of c] (c1) {};
+            \node[below of=c1] {$c+1$};
+            \node[block, right=of cprime1] (cprime2) {};
+            \node[below of=cprime2] {$(c+2)'$};
+            \node[block, right=of c1] (c2) {};
+            \node[below of=c2] {$c+2$};
+            \node[block, right=of c2] (c3) {};
+            \node[below of=c3] {$c+3$};
+            
+            \path[draw, decorate] (G) -- (c);
+            \path[draw] (cprime1.west) -- (c.north);
+            \path[draw] (c1.west) -- (c.south);
+            \path[draw] (cprime1.east) -- (cprime2.west);
+            \path[draw] (c1.east) -- (c2.west);
+            \path[draw] (c2.east) -- (c3.west);
+          \end{tikzpicture}
+          \caption{The consensus adopts a fork}
+          \label{figure:acceptedfork}
+        \end{figure}
+        
+        Starting from here, the majority of the nodes will now consider \(c+3\) since it lies within a longer blockchain than \((c+2)'\). This implies that a mined block is not necessarily part of the main chain. Hence, the \textit{persistence} definition of a blockchain states that if a certain number of blocks have been mined on top of a block according to the blockchain of a honest node, then it is quite certain that it will stay in the main chain forever.
+        
+        The second important definition given by the Bitcoin backbone protocol is \textit{liveness}.
+        
+        \begin{Definition}[Liveness \cite{Backbone}]
+          A transaction originating from a honest node will eventually be part of a block whose depth in the blockchain is greater than \(k\).
+        \end{Definition}
+
+        The liveness property ensures that every transaction issued by a honest node will eventually be considered permanent by all the honest player, given that the blockchain is also \textit{persistent}. Furthermore, \citeauthor{Backbone} showed that if we assume a high network synchronicity, that is, if we assume that the time taken to mine a block is much greater than the time taken to propagate the information throughout the network, then the Bitcoin blockchain has the \textit{persistence} and \textit{liveness} properties, given that an adversary does not own more than 50\% of the total computational power of the network.
+
+    \section{\textit{Superlight} blockchain clients}
+      The limitations in both storage and performance of clients led to the creation of novel methods to prove the inclusion of transactions within the chain. We consider two different types of nodes, as in \cite{SoKDistributed}: full nodes, who run a full copy of the blockchain, and clients, who don't.
+      
+      In this context, two solutions were proposed: Superblock \cite{\NipoCite} and \FC\ \cite{\FCCite}. Since \FC\ is often viewed as an improvement of Superblock, we will provide an overview of the Superblock protocol in order to introduce \FC\ later.
+      \subsection{Superblock}
+        The Superblock protocol \cite{\NipoCite} uses \textit{superblocks} to build its proofs. As a recall, for a block to be valid, a certain hash \(h\) must hold \(h\leqslant2^{d}\), where \(d\) is the current difficulty of the network. Then, a superblock of level \(i\) are the blocks for which this hash verifies \(h\leqslant2^{d-i}\). For instance, every valid block is a superblock of level 0 and there are in average half as much superblocks of level 1 as there are valid blocks.
+        
+        Superblock makes use of these statistics in order to determine whether the number of superblocks in an adversary's chain is sufficiently average or not. To do so, the provers can build proofs according to their chains, and the verifier can compare proofs using an operator defined in \cite{\NipoCite}.
+        
+        However, Superblock suffers from a very important problem: since \textit{superblocks} level and frequencies directly depends on the current difficulty of the network, further work has to be done to adapt it to blockchains with variable difficulty, such as Bitcoin or Ethereum.         
+        Since this problem was not tackled in the original Super block paper \cite{\NipoCite}, the \FC\ alternative is viewed as an improvement of Superblock \cite{NipoVsFC}. Still, \citeauthor{\NipoCite} defined in their paper the model of provers and verifiers which is used by \FC.
+        
+        \begin{Definition}[The prover and verifier model \cite{\NipoCite}]
+          A client that wants to check the presence of a transaction within a chain is \textit{the verifier}. The nodes it connects to are \textit{the provers}. We make the assumption that the client connects to at least one honest prover.
+          
+          For an interactive protocol, several exchanges are needed between the verifier and the prover, which isn't the case for a non-interactive protocol, such as Superblock or \FC.
+          
+          If the verifier is provided with several chains of different lengths it goes for the longest claimed chain first.
+        \end{Definition}
+
+        
+      \subsection{\FC}
+        The main drawback of the Superblock protocol is that it breaks when deployed on a system with variable difficulty, which is the case for most (if not all) of PoW blockchains. Indeed, superblocks are directly linked to the current difficulty of the network, since a bigger difficulty would change the level of all superblocks.
+        
+        In order to cope with this problem, the \FC\ protocol has been designed \cite{\FCCite}. Just like the Superblock protocol, the idea is to perform a random sampling of the chain and to add an interlink data within the blocks to perform proofs of inclusion. This interlink data, in the case of \FC, is called the Merkle Mountain Range root.
+        \subsubsection{Merkle Mountain Range}
+          A Merkle Mountain Range (MMR) \cite{\FCCite} is very similar to a Merkle Tree, in the sense that it is a binary tree whose leaves store hashes and whose nodes who are not leaves are the hash of the concatenation of its children values. However, contrarily to a Merkle Tree, a MMR is not necessarily (and is often not) balanced. Plus, the hashes that the leaves store aren't transaction hashes, but block headers hashes: the first leaf stores the hash of the Genesis header, the second the one of the second block, etc.
+          
+          The idea behind MMR is also very similar to a Merkle Tree: given the root of the MMR, it is computationally infeasible to create hashes to make the verifier believe that one node is within the MMR when it isn't. In the \FC\ protocol, the interlink data in a block is the MMR root of the MMR committing all the previous blocks of the chain \cite{\FCCite}. For instance, the genesis has an empty interlink data field, the second block has the hash of the genesis header in its interlink data, etc.
+          
+          In order to build a MMR with \(n\) leaves and root \(r\), two additional properties have to be verified according to \cite{\FCCite}:
+          
+          \begin{itemize}
+            \item its depth is \(\left\lceil\log_2(n)\right\rceil\);
+            \item \(r\).left is a MMR with \(2^{1+\left\lceil\log_2(n)\right\rceil}\) leaves, while \(r\).right is a MMR with \(n-2^{1+\left\lceil\log_2(n)\right\rceil}\) leaves.
+          \end{itemize}
+          
+          More simply, if \(i\) is the biggest integer such that \(n\) can be decomposed as \(n=2^i+j\), then the leftmost part of the MMR is a MMR with \(2^i\) leaves, while the rightmost of the MMR is a MMR with \(j\) leaves. An example of a MMR is given in \autoref{figure:mmrconstruct}.
+        
+        \begin{figure}[ht]
+          \centering
+          \begin{forest}
+            [MMR root
+              [\(H\left(H\left(H\left(h_1\middle|h_2\right)\middle|H\left(h_3\middle|h_4\right)\right)\middle|H\left(H\left(h_5\middle|h_6\right)\middle|H\left(h_7\middle|h_8\right)\right)\right)\)
+                [\(H\left(H\left(h_1\middle|h_2\right)\middle|H\left(h_3\middle|h_4\right)\right)\),tier=3
+                  [\(H\left(h_1\middle|h_2\right)\)
+                    [\(h_{1}\), tier=1]
+                    [\(h_{2}\), tier=1]
+                  ]
+                  [\(H\left(h_3\middle|h_4\right)\)
+                    [\(h_{3}\), tier=1]
+                    [\(h_{4}\), tier=1]
+                  ]
+                ]
+                [\(H\left(H\left(h_5\middle|h_6\right)\middle|H\left(h_7\middle|h_8\right)\right)\),tier=3
+                  [\(H\left(h_5\middle|h_6\right)\)
+                    [\(h_{5}\), tier=1]
+                    [\(h_{6}\), tier=1]
+                  ]
+                  [\(H\left(h_7\middle|h_8\right)\)
+                    [\(h_{7}\), tier=1]
+                    [\(h_{8}\), tier=1]
+                  ]
+                ]
+              ]
+              [\(H\left(H\left(h_9\middle|h_{10}\right)\middle|h_{11}\right)\),tier=3
+                [\(H\left(h_{9}\middle|h_{10}\right)\)
+                  [\(h_{9}\), tier=1]
+                  [\(h_{10}\), tier=1]
+                ]
+                [\(h_{11}\),tier=1]
+              ]
+            ]
+          \end{forest}
+          \caption{A MMR with 11 leaves}
+          \label{figure:mmrconstruct}
+        \end{figure}
+          
+          Now that MMR are well defined, it is easy to add a leaf to it to build a new MMR. This algorithm has been written in \cite{\FCCite}. Plus, it is easy for a prover to provide the proof \(\Pi_k\) that the block number \(k\), whose hash is known, is within the MMR. Indeed, the method is exactly the same as the one for Merkle Tree, and hence as secure.
+        \subsubsection{The \FC\ protocol}
+          The \FC\ protocol assumes that a client, the verifier, is connected to at least two provers, amongst which at least one is honest. The goal of \FC\ is to check whether a certain transaction TX is included in a certain block \(B\) which lies within the main chain. Since the proof of inclusion of TX within \(B\) is easily done with Merkle Tree proofs, the goal of the \FC\ protocol is to determine whether \(B\) is in the chain.
+          
+          Hence, the client will ask both provers to provide a MMR proof that \(B\) lies within the main chain, along with the length of their chain and the header of their last known block. If both provers agree, then they are honest and the protocol ends. If not, one of them is not honest. The \FC\ client then proceeds in two steps:
+          
+          \begin{enumerate}
+            \item It asks the provers for inclusion proofs of blocks according to an optimal random sampling.
+            \item It asks for an inclusion proof of \(B\) if the previous step has not failed.
+          \end{enumerate}
+          
+          Note that during the second step, the client now trusts the prover the owns a copy of the valid chain. Hence, the second step is the one that determines the outcome of the protocol. Furthermore, note that this protocol is inherently non-interactive: the clients asks for all the block it wants in one go.
+          
+          Let us imagine that an adversary wants to perform a double-spent transaction: their goal is to fool the client into believing a block lies in the chain while it does not. Since a honest miner will also answer and claim having a chain of length \(n\), the adversary is also forced to do so. Indeed, the client would check the honest chain first otherwise, and then consider it as the valid chain without even considering the adversary's. But since the adversary have less computational power than the set of all honest miners, they would be forced to include fake blocks in their fork, that are blocks without a valid PoW. The situation  is represented in \autoref{figure:fcusecase}. Fake blocks are drawn in red.
+          
+          \begin{figure}[ht]
+          \centering
+          \begin{tikzpicture}[decoration={snake}]
+            \node[block] (G) {};
+            \node[below of=G] {$G$};
+            \node[block, right=of G] (c) {};
+            \node[below of=c] {$c$};
+            \node[block, above right=of c] (cprime1) {};
+            \node[below of=cprime1] {$(c+1)'$};
+            \node[block, below right=of c] (c1) {};
+            \node[below of=c1] {$c+1$};
+            \node[block, right=of cprime1,fill=red!20] (cprime2) {};
+            \node[below of=cprime2] {$(c+2)'$};
+            \node[block, right=of cprime2,fill=red!20] (cprimej) {};
+            \node[below of=cprimej] {$(c+j)'$};
+            \node[block, right=of c1] (c2) {};
+            \node[below of=c2] {$c+2$};
+            \node[block, right=of c2] (c3) {};
+            \node[below of=c3] {$c+j$};
+            
+            \path[draw, decorate] (G) -- (c);
+            \path[draw] (cprime1.west) -- (c.north);
+            \path[draw] (c1.west) -- (c.south);
+            \path[draw] (cprime1.east) -- (cprime2.west);
+            \path[draw] (c1.east) -- (c2.west);
+            \path[draw,decorate] (c2.east) -- (c3.west);
+            \path[draw,decorate] (cprime2.east) -- (cprimej.west);
+          \end{tikzpicture}
+          \caption{\FC\ use case}
+          \label{figure:fcusecase}
+        \end{figure}
+        
+          The goal of the adversary is that none of their fake blocks are sampled. Since the more they wait, the more fake blocks they have to add to their fork, thry want their fork to be as short as possible. Hence, the goal now for \FC\ is to find the optimal random sampling, which will surely sample recent blocks more often. For this, a piece of information is crucial: \FC\ has been designed to be implemented as a soft fork. Hence, every block that is mined on top of the chain is to have a valid interlink data. Since an inconsistency between the interlink data of a block and the true MMR root can be easily detected, an adversary has no way to put arbitrary data in the interlink field of a block they have mined.
+          
+          Since the client will first verify (and potentially trust) provers with longer chains, an adversary that wants to perform a double-spent transaction has no choice but to fork the main chain and add fake blocks (that are blocks without a valid PoW) within its fork to equal the length of the main chain. The \FC\ protocol is thus to sample blocks randomly within the chain and to stop if a fake block is sampled.
+          
+          An important piece of information is to be understood in order to understand the \FC\ protocol: if the prover is asked for block \(k\) (or more precisely, for a proof of inclusion of block \(k\)), it cannot provide another block instead. Indeed, because of the way the MMR has been built, and since the prover already has sent its MMR root, changing block positions while keeping the same MMR root is computationally infeasible, since the hash function that is used is believed to be pre-image resistant.
+          
+          Using these information, \citeauthor{\FCCite} found out that an optimal sampling distribution samples more frequently recent blocks than older blocks. Plus, they have been able to determine the optimal sampling strategy using these information. Regarding to this project, it is very important to understand how things implied others. Because of the fact that \FC\ was deployed on a soft/hard fork, the only thing an adversary can do is try to create a fork of the same length as the main chain, and because of this, an optimal sampling distribution could be found.
+
+    \section{Updating the protocol rules}
+      In order to implement \FC\ protocol, it is necessary to either start a blockchain that accepts a MMR interlink data from the start, or to update the protocol according to which miners have to mine blocks. Since it will not be reasonable to start the Bitcoin blockchain from the start, only the latter is possible. In this section, we aim to describe what are the possibilities for updating a PoW blockchain so that \FC\ can be implemented on it. In the general case, let us consider that a blockchain running protocol \(\mathcal{P}\) wants to implement protocol \(\mathcal{P}'\). The set of valid blocks is thus transformed from \(\mathcal{V}\) to \(\mathcal{V}'\).
+      \subsection{Traditional forks}
+        A first solution could be to implement \FC\ either as a hard fork or as a soft fork.
+        \subsubsection{Hard fork}
+          According to \cite{Velvet}, if \(\mathcal{V}\subset\mathcal{V}'\), then if the majority of miners are updated this will be called a hard fork. A hard fork expands the set of validity blocks, thus making old blocks compatible with the new protocol, but new blocks incompatible with the old protocol. A hard fork transforms previously invalid blocks into valid ones.
+          
+          An example of such a fork would the increase of the allowed block size from \(s\) to \(s'\), that is \(s'>s\). According to the upgraded miners, every block with a size lower than \(s'\) is valid, which is true for every block mined before the protocol was implemented, since its size is \(s\).
+          
+          In the case of the \FC\ protocol, \citeauthor{\FCCite} proposed to implement \FC\ as a hard fork. This would imply that MMR root would not only be added to future blocks, but also that they would be computed and added to already mined blocks. Fundamentally, this is basically the same as starting a new blockchain that accepts MMR root from the client point of view. The difference is that starting all from the beginning isn't required anymore here. This assumes that a majority of miners are upgraded, so that the consensus uses the new protocol.
+        \subsubsection{Soft fork}
+          Another possibility is what is called a soft fork. Instead of expanding the validity set \(\mathcal{V}\), the new protocol reduces it, that is \(\mathcal{V}'\subset\mathcal{V}\). Hence, the new blocks are compatible with the old protocol, but the old blocks aren't compatible anymore with the new protocol. This is for instance the case when the new protocol reduces the size of blocks. Contrarily to hard fork, a soft fork is really one only whenever a majority of nodes have adopted the new protocol rules \cite{Velvet}.
+          
+          In the case of the \FC\ protocol, this means that the MMR roots would only be added to blocks mined after the protocol update.
+      \subsection{Velvet forks}
+        While hard and soft forks are the most classical cases of forks, a more recent one have some advantages that they don't: the so-called velvet fork \cite{Velvet}.
+        
+        When a new protocol is deployed as a velvet fork, upgraded and non-upgraded miners work hand in hand. A block is valid only if it is valid according to the old protocol \(\mathcal{P}\). Additionally, upgraded miners mine blocks according to the new protocol \(\mathcal{P}'\). Hence, the set of validity blocks is the same in both cases: \(\mathcal{V}=\mathcal{V}'\) \cite{Velvet}. The main advantage is that even if a small proportion \(g\) of miners are upgraded, it may still be possible to use the protocol \(\mathcal{P}'\) by taking into account that there is the possibility that some blocks won't contain a MMR root.
+        
+        This approach was also considered by \citeauthor{\FCCite}. In the case of a deployment on a velvet fork, upgraded miners would, in a backward compatible way, include the MMR root in their blocks, while non-upgraded miners won't. Crucially, this also means that a block with random (and thus, invalid) data in the interlink data field would also be accepted by the consensus: every miner can put whatever they want in this field. It is shown in \cite{\FCCite} that it leads to less efficient proofs: the proof size is larger by a factor of \(\frac1g\) in this case. Such blocks, with invalid (or empty) interlink data field are called legacy blocks.

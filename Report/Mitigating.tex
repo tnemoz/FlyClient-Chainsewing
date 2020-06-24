@@ -1,0 +1,6 @@
+      The probability that the \textit{chain-sewing} attack succeeds has been computed in the case where \FC\ is implemented as defined in \cite{\FCCite}. In particular, it uses the fact that \FC\ samples more frequently recent blocks than old ones to maximize the probability of success.
+      
+      The thing is, since the adversary can now merge its fork to the main chain from the MMR point of view, it is not true that this strategy is optimal anymore. The fork can be both very short and very old, which wasn't the case when \FC\ is deployed as a soft fork or as a hard fork.
+      
+      A solution to tackle this problem may be to use the Binary Search Approach, as described in \cite{\FCCite}. However, because of the fact that this approach is interactive, it may lead to additional delays. Plus, this approach is deterministic. Hence, the adversary knows in advance which blocks will be sampled. In spite of this, it may be still impossible for an adversary to perform a double-spent transaction, but this is to be proved formally.
+

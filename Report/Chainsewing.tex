@@ -1,0 +1,316 @@
+    \section{\textit{Chain-sewing} attacks}
+      A personal correspondence with Andrianna Polydouri and Dionysis Zindros showed that the Superblock protocol is prone to be attacked with what is called a \textit{chain-sewing} attack. Such an attack is applicable when the new protocol is deployed as a velvet fork.
+      
+      The idea is that the adversary can put arbitrary data in the interlink field. Hence, they can put interlink data that is invalid for honest miners but that may be considered valid by the verifier. Such an attack on \FC\ is described in \autoref{subsection:attack}.
+    \section{Principle of a \textit{chain-sewing} attacks on \FC}
+      \label{subsection:attack}
+      Let us place ourselves within the Bitcoin backbone protocol with variable difficulty. Let us assume that the \FC\ protocol was implemented on a velvet fork in this context. In particular, this means that:
+      
+      \begin{itemize}
+        \item every block header contains a reference to the previous block in the chain, since it has to be valid according to the old protocol, be it a Proof of Work or a Proof of Stake;
+        \item it is possible for a prover to indicate a block as a legacy block. Otherwise, every miner who puts random data in the MMR root field will break the protocol as no proofs sampling this block would be accepted;
+        \item a block header can contain arbitrary data in the MMR root field;
+        \item if a legacy block is sampled, the prover must provide all its ancestors until the most recent upgraded block.
+      \end{itemize}
+      
+      Let us assume that at a block \(c\) of the main chain \(\mathsf{C}\), the adversary creates a fork. In the mean time, both the honest miners and potentially the adversary continue to mine on top of the main chain. In order to do so, the adversary splits its computational power so that they mine on top of the fork with a portion \(\beta\) of its computational power and uses the rest to mine on top of the main chain. The adversary will behave according to the \FC\ protocol on both the fork and the main chain. Honest miners will continue to behave accordingly to the \FC\ protocol. The situation is represented on \autoref{figure:chainsewingattempt}, where black blocks are mined by the adversary and contains a MMR root and dashed arrows corresponds to a MMR link if it is different from the previous block header hash reference.
+    
+      \begin{figure}[ht]
+        \centering
+          \begin{tikzpicture}[decoration = {snake}]
+            \node[block] (G) {};
+            \node[below of=G] {$G$};
+            \node[block, right=of G] (c) {};
+            \node[below of=c] {$c$};
+            \node[block, above right=of c,fill=black] (cprime1) {};
+            \node[below of=cprime1] {$(c+1)'$};
+            \node[block, below right=of c] (c1) {};
+            \node[block, right=of cprime1,fill=black] (cprimei) {};
+            \node[below of=cprimei] {$(c+i)'$};
+            \node[below of=c1] {$c+1$};
+            \node[block, right=of c1] (cj) {};
+            \node[below of=cj] {$c + j$};
+            \node[block, above right=of cj, fill=black] (cj1) {};
+            \node[below of=cj1] {$c + j + 1$};
+            \node[block, right=of cj1] (k) {};
+            \node[below of=k] {$k$};
+            \node[block, right=of k,fill=black] (k1) {};
+            \node[below of=k1] {$k + 1$};
+            \node[block, right=of k1] (N) {};
+            \node[below of=N] {$N$};
+            
+            \path[draw, decorate] (G) -- (c);
+            \path[draw] (cprime1.west) -- (c.north);
+            \path[draw] (c1.west) -- (c.south);
+            \path[draw, decorate] (cprime1) -- (cprimei);
+            \path[draw, decorate] (c1) -- (cj);
+            \path[draw, dashed, ->] (cj1.north) -- (cprimei.east);
+            \path[draw] (cj1.south) -- (cj.east);
+            \path[draw, decorate] (cj1) -- (k);
+            \path[draw] (k) -- (k1);
+            \path[draw,decorate] (k1) -- (N);
+          \end{tikzpicture}
+          \caption{A chainsewing attack attempt on \FC}
+          \label{figure:chainsewingattempt}
+        \end{figure}
+      
+      Starting from \(c+j+1\), which we will call the \textit{merging block} from now on, every block mined by the adversary will contain a MMR root corresponding to the MMR where the portion \(\mathsf{C}[c+1:c+j]\) has been replaced with the adversary's fork, and where all honest miner's blocks are considered as legacy blocks. Once in this situation, a number \(N-c-j-1>k\) of blocks are mined on top of \(c+j+1\). In order to have, let say, \((c+1)'\) accepted, the adversary must:
+      
+      \begin{itemize}
+        \item convince the verifier that they holds a chain \(\mathsf{C}'\) that is as long as the main chain;
+        \item provide the verifier with a MMR proof that \((c+1)'\) lies within \(\mathsf{C}'\).
+      \end{itemize}
+      
+      Let us focus on the latter for now. As a recall, the adversary blocks and an honest miner's now have different MMR roots, and both considers the other's blocks as legacy blocks. For this reason, it is necessary for a prover to have the capacity to designate a sampled block as legacy. Otherwise, whenever an adversary's block is mined, the proof provided by an honest miner will fail.
+      
+      Hence, it is possible for the adversary to designate any honest miner's block as a legacy block, so that only adversarial blocks are sampled. Because of the way the adversary has built its MMR, they will succeed in proving the inclusion of \((c+1)'\) in the chain the adversary claims to have.
+      
+      However, the adversary still has to prove that the MMR root in \((c+1)'\) belongs to a chain of the same length as the main chain, that is to prove that the chain they claims to have is the longest chain they know. Indeed, two cases are possible:
+      
+      \begin{enumerate}
+      \item The verifier only connects to the adversary.
+      \item The verifier connects to at least one honest prover.
+      \end{enumerate}
+      
+      The first case is actually trivial: since the verifier has no other information than the ones provided by the adversary, the adversary will succeed in proving that she holds the longest chain, since there is no other chain anyway.
+      
+      The second case is more difficult. An honest prover will tell the verifier that they hold a chain of length \(n\). Since longer chains will be verified first, the adversary also has to claim having a chain of length \(n\), while only having a chain of length \(n-j+i\). \FC\ has been built for preventing this very situation. Hence, the only way for the adversary to succeed is to set \(j=i\). The best strategy is then to try to mine \(c_x'\) while \(c_x\) is mined on the main chain for some \(x\). If \(c_x'\) is mined before \(c_x\), the adversary begins to mine \(c_{x+1}'\). If it is not, the adversary places a fake block at place \(x\) and begins to mine \(c_{x+1}'\). Note that even if the adversary have some advance, they have to wait until the corresponding block is mined for mining the merging block. For simplicity, let us take \(j=i=1\). This corresponds to the situation in \autoref{figure:chainsewingattack}.
+      
+      \begin{figure}[ht]
+        \centering
+          \begin{tikzpicture}[decoration = {snake}]
+            \node[block] (G) {};
+            \node[below of=G] {$G$};
+            \node[block, right=of G] (c) {};
+            \node[below of=c] {$c$};
+            \node[block, above right=of c] (cprime1) {};
+            \node[below of=cprime1] {$(c+1)'$};
+            \node[block, below right=of c] (c1) {};
+            \node[below of=c1] {$c+1$};
+            \node[block, above right=of c1, fill=black] (c2) {};
+            \node[below of=c2] {$c + 2$};
+            \node[block, right=of c2] (k) {};
+            \node[below of=k] {$k$};
+            \node[block, right=of k,fill=black] (k1) {};
+            \node[below of=k1] {$k + 1$};
+            \node[block, right=of k1] (N) {};
+            \node[below of=N] {$N$};
+            
+            \path[draw, decorate] (G) -- (c);
+            \path[draw] (cprime1.west) -- (c.north);
+            \path[draw] (c1.west) -- (c.south);
+            \path[draw, dashed, ->] (c2.north) -- (cprime1.east);
+            \path[draw] (c2.south) -- (c1.east);
+            \path[draw, decorate] (c2) -- (k);
+            \path[draw] (k) -- (k1);
+            \path[draw,decorate] (k1) -- (N);
+          \end{tikzpicture}
+          \caption{A chainsewing attack attempt on \FC\ with a fork of length 1}
+          \label{figure:chainsewingattack}
+        \end{figure}
+        
+      Now, it is easy for the adversary to claim having a chain of length \(n\). Actually, they can even claim having a longer chain if they manage to mine a block at the top of the chain and by keeping it secret from the honest miners for a time. The advantage of doing this is that \FC\ will begin by the longer proof, that is the adversary's.
+      
+      However, is is crucial that \(c+2\) is not sampled when proving this. Indeed, an inconsistency between its PoW (or more generally, its reference to the previous block) and its MMR will be revealed. Indeed, the verifier is able to know that \((c+1)'\) and \(c+2\) are supposed to be adjacent, according to the MMR structure they deduced from \(n\), that the adversary had to provide. Since the adversary wants \((c+1)'\) to be verified, they will have to send it to the prover. Hence, if \(c+2\) is sampled by the client, then an inconsistency between the MMR root and the previous block can be detected by the client.
+      
+      Note that this case is not actually described in the \FC\ paper. Hence, if \FC\ is deployed without taking this problem into account, the probability of succees, as computed in \autoref{subsection:probability} increases. 
+      
+      A solution for the adversary to avoid this is simply to wait for blocks being mined on top of the main chain. Indeed, the current design of \FC\ makes old blocks less-likely to be sampled. Hence, by doing so, it is high-likely that \(c+2\) won't be sampled, and that no inconsistency will be detected when the adversary will send \((c+1)'\).
+      
+      In order to circumvent this problem, one may also try to introduce intermediary blocks, valid or not, between \((c+1)'\) and \(c+2\). However, since the fork of the adversary has to be of the same length as the corresponding chain portion, the same problem will happen: an inconsistency will be detected between the previous block reference and the MMR root. Indeed, let us consider the situation depicted in \autoref{figure:chainsewingdouble}.
+      
+      \begin{figure}[ht]
+        \centering
+        \begin{tikzpicture}[decoration = {snake}]
+          \node[block] (G) {};
+          \node[below of=G] {$G$};
+          \node[block, right=of G] (c) {};
+          \node[below of=c] {$c$};
+          \node[block, above right=of c] (cprime1) {};
+          \node[below of=cprime1] {$(c+1)'$};
+          \node[block, below right=of c] (c1) {};
+          \node[block, above right=of cprime1] (cprime2bis) {};
+          \node[below of=cprime2bis] {$(c+2)'$};
+          \node[block, below right=of cprime1,fill=black] (cprime2) {};
+          \node[below of=cprime2] {$c+2$};
+          \node[below of=c1] {$c+1$};
+          \node[block, right=of c1] (c2) {};
+          \node[below of=c2] {$c + 2$};
+          \node[block, above right=of c2, fill=black] (c3) {};
+          \node[below of=c3] {$c + 3$};
+          \node[block, right=of c3] (k) {};
+          \node[below of=k] {$k$};
+          \node[block, right=of k,fill=black] (k1) {};
+          \node[below of=k1] {$k + 1$};
+          \node[block, right=of k1] (N) {};
+          \node[below of=N] {$N$};
+          
+          \path[draw, decorate] (G) -- (c);
+          \path[draw] (cprime1.west) -- (c.north);
+          \path[draw] (c1.west) -- (c.south);
+          \path[draw] (cprime1) -- (cprime2);
+          \path[draw] (cprime1) -- (cprime2bis);
+          \path[draw] (c1) -- (c2);
+          \path[draw, dashed, ->] (c3.north) -- (cprime2bis.east);
+          \path[draw] (c3.south) -- (c2.east);
+          \path[draw, decorate] (c3) -- (k);
+          \path[draw] (k) -- (k1);
+          \path[draw,decorate] (k1) -- (N);
+        \end{tikzpicture}
+        \caption{A try to prevent the merging block sampling problem}
+        \label{figure:chainsewingdouble}
+      \end{figure}
+        
+      The solution works as follows:
+      
+      \begin{itemize}
+        \item if \(c+3\) is not sampled, there is no problem;
+        \item if \(c+3\) is sampled, then the adversary has to build a MMR where the hash at place \(c+2\) is \(c+2's\) hash.
+      \end{itemize}
+      
+      The adversary wants to convince the verifier that \((c+1)'\) is within the chain, but they has no control over the values of the leaves number \(c+1\), which contains the hash of \((c+1)'\) and \(c+2\), which contains the hash of \(c+2\). Hence, the only thing they has control on is the MMR proof they send. What the adversary has to do is to create a MMR proof so that the hashes they send add up to the MMR root in \(c+3\). However, it means that the adversary has to find a hash so that everything adds up correctly to the MMR root. Since the hash function used is believed to be pre-image resistant, this is computationally infeasible. Plus, a sampling where both \(c+3\) and \(c+2\) are sampled would also reveal an inconsistency.
+      
+      Getting back to the \textit{chain-sewing attack}, the reason why this works on a velvet fork only is that an adversary is allowed to put some Fake MMR root in a block header of the main chain. In particular, the following was outlined in the \FC\ paper: \enquote{once a malicious prover forks off from the honest chain, it cannot include any of the later honest blocks in its chain because the MMR root in those blocks would not match the chain} \cite{\FCCite}.
+      
+      In particular, the adversary is not forced to create a fork as long as the main chain, eventually creating fake blocks. We may note that this attack works as long as the fork created by the adversary is as long as the corresponding chain portion. The adversary can also include fake blocks in its fork to have a longer fork while sticking to this constraint. Even though this increases the probability of getting caught as every fake block sampled results in a failed proof, waiting long enough once the fork has been merged is enough for hoping that these blocks won't be sampled. Hence, the attack also works with longer forks.
+      
+    \section[Probability of success]{Probability of success of the \textit{chain-sewing} attack on \FC}
+      \label{subsection:probability}
+      In order for the attack to succeed, the only thing that is needed is that neither the merging block is sampled nor are the fake blocks in the fork, and that the adversary manages to mine at least one block, that is the merging one. Hence, two things are to be considered:
+      
+      \begin{enumerate}
+      \item the probability for the attacker to mine the merging block;
+      \item the probability for the merging block to be sampled.
+      \end{enumerate}
+      
+      Note that the computations are done for a constant difficulty for now, but similar ones can be done for taking into account variable difficulty.
+      
+      \subsection{Probability for the attacker to mine the merging block}
+        If the adversary manages to mine the forking block before a honest miner mines the corresponding honest block, then the adversary has a probability \(\alpha\) of mining the forking block, since a ratio \(\alpha\) of the blocks are mined by the adversary. For a fork of length \(f\), the adversary has in average to place \(k=(1-\alpha)\,f\) fake blocks in it. Following the strategy of giving up on a block (hence placing a fake one) as soon as the corresponding honest block is mined, the probability of creating a fork of length \(f\) is \(\alpha\), since it is the probability of mining the merging block one the fork is of length \(f\).
+        
+        In order not to have lost computational power, the adversary can, if they doesn't mine the merging block, try to add a fake block to the fork and try again to mine the merging block. This doesn't impact the probability of success of this part, but impact the one of getting caught. In average, following this strategy, the adversary will add \(\frac{1-\alpha}{\alpha}\) fake blocks to the fork.
+      \subsection{Probability for the merging block or fake blocks to be sampled under a constant difficulty}
+        Let us assume that:
+        \begin{itemize}
+          \item the chain has a total of \(n\) blocks;
+          \item the merging block is at position \(m\) in the chain;
+          \item \((x_1,\cdots,x_k)\) are the increasing positions of the fake blocks in the fork.
+        \end{itemize}
+        
+        The adversary succeeds if neither \(m\) nor any of the \(x_i\) is sampled. The former is due to the fact that its reference to the previous block is inconsistent with its MMR root, while the latter just have invalid PoWs. The probability that a block at position \(x>n - L\) is sampled is 1, while the probability that a block at position \(x\leqslant n-L\) is:
+        
+        \begin{align*}
+          p_x &= \frac{1}{\ln\left(\frac{L}{n}\right)}\int_{\frac{x}{n}}^{\frac{x+1}{n}}\frac{\mathrm{d}t}{t-1}\\
+          &= \frac{\ln\left(\left|\frac{x+1}{n}-1\right|\right)-\ln\left(\left|\frac{x}{n}-1\right|\right)}{\ln\left(\frac{L}{n}\right)}\\
+          &= \frac{\ln\left(1-\frac{1}{n-x}\right)}{\ln\left(\frac{L}{n}\right)}\\
+          &= \frac{\ln\left(1+\frac{1}{n-x-1}\right)}{\ln\left(\frac{n}{L}\right)}
+        \end{align*}
+        
+        Hence, the probability of the adversary not succeeding is:
+        
+        \begin{align*}
+          p_{\text{failure}} &= p_m + \sum_{i=1}^kp_{x_i}\\
+          &\leqslant p_m + \sum_{i=1}^kp_m\\
+          &= \frac{k+1}{\ln\left(\frac{n}{L}\right)}\,\ln\left(1+\frac{1}{n-m-1}\right)
+        \end{align*}
+        
+        For a fork of length \(f\), the adversary has in average to place \(k=(1-\alpha)\,\left(f+\frac{1}{\alpha}\right)\) fake blocks in it. In order to mine the merging block, they also has to put \(F\) fake blocks at the end of the fork, where \(F\) follows a geometric distribution of parameter \(\alpha\). Hence, the probability that the adversary makes the verifier believe that a fork of length \(f\) is within the main chain, starting at block \(m-f\), assuming that the adversary owns a fraction \(\alpha\) of the total computational power and that it is subject to the \((c,L)\)-assumption is at least, in average:
+        
+        \[\alpha\,\left[1-\frac{1+(1-\alpha)\,\left(f+\frac1\alpha\right)}{\ln\left(\frac{n}{L}\right)}\,\ln\left(1+\frac{1}{n-m-1}\right)\right]\]
+        
+        If the adversary is only interested in making a double-spent transaction, they doesn't has to place any fake blocks (since the transaction block will be sampled, it can't be fake). The probability of succeeding is then at least:
+        
+        \[\alpha^2\,\left[1-\frac{\ln\left(1+\frac{1}{n-m-1}\right)}{\ln\left(\frac{n}{L}\right)}\right]\]
+        
+        More generally, the probability of the adversary having a fork of length \(f\) without putting any fake blocks is at least:
+        
+        \[\alpha^{f+1}\,\left[1-\frac{\ln\left(1+\frac{1}{n-m-1}\right)}{\ln\left(\frac{n}{L}\right)}\right]\]
+        
+        However, the way that \FC is designed allows the adversary to submit another proof if one doesn't succeed because of the sampling. Caching the fake sampled blocks can be a solution for the client, but it is not scalable. Hence, the way \FC is designed, the probability of success of the adversary is equal to the probability of getting caught, that is, for a fork of length \(f\) with fake blocks:
+        
+        \[1-\frac{1+(1-\alpha)\,\left(f+\frac1\alpha\right)}{\ln\left(\frac{n}{L}\right)}\,\ln\left(1+\frac{1}{n-m-1}\right)\]
+        
+        and for a fork of length \(f\) without fake blocks:
+        
+        \[1-\frac{\ln\left(1+\frac{1}{n-m-1}\right)}{\ln\left(\frac{n}{L}\right)}\]
+        
+        Finally, note that if \FC\ is implemented without taking into account the fact that the previous block reference and the MMR root can reveal an inconsistency, it will accept the adversary's chain even if the merging block is sampled. Then, the probability of success for creating a double-spent transaction is \(\alpha^2\), since the adversary only has to mine the forking block and the merging one.
+      \subsection{Probability for the merging block or fake blocks to be sampled using the Bitcoin protocol}
+        \FC\ can be implemented to work on a blockchain with a variable difficulty, like the Bitcoin one. The velvet fork attack works just the same as in the constant difficulty case. However, the probability of an attacker succeeding in running a velvet fork attack slightly decreases.
+        
+        Indeed, the previous analysis considers the input space \([0\,;\,1]\) of the distribution function as a variable that ranges over blocks. For instance, \(x=\frac12\) roughly corresponds to the block at position \(\frac{n}{2}\) in the blockchain. However, as described in \cite{\FCCite}, one can adapt \FC\ to work with variable difficulty by considering \([0\,;\,1]\) as a variable that ranges over the difficulty. For instance, \(x=\frac{1}{2}\) roughly corresponds to the block where \(\frac12\) of the total computational power has been mined. This is actually a generalization of the previous process: under a constant difficulty, half of the total computational power has been spent roughly at block \(\frac{n}{2}\).
+        
+        Using data from \cite{BTCDifficulty}, we can plot the graph of the Bitcoin difficulty over time, using \([0\,;\,1]\) as an space that ranges over blocks, which is shown on \autoref{figure:diff1}.
+        
+        \begin{figure}[ht]
+          \centering
+          \begin{tikzpicture}
+            \begin{axis}[ylabel={Difficulty}, no marks]
+              \addplot table[x index=0, y index=1] {data/difficulty.txt};
+            \end{axis}
+
+          \end{tikzpicture}
+          \caption{Difficulty of the Bitcoin protocol}
+          \label{figure:diff1}
+        \end{figure}
+        
+        However, what we're interested in is the cumulated difficulty over time, which is shown on \autoref{figure:diff2} and which we denote \(d\).
+        
+        \begin{figure}[ht]
+          \centering
+          \begin{tikzpicture}
+            \begin{axis}[xlabel={Block position},ylabel={Cumulated difficulty}, no marks]
+              \addplot table[x index=0, y index=1] {data/cumulated_difficulty.txt};
+            \end{axis}
+
+          \end{tikzpicture}
+          \caption{Cumulated difficulty of the Bitcoin protocol}
+          \label{figure:diff2}
+        \end{figure}
+        
+        Since what we essentially want is to translate a variable that ranges over the block space to a variable, we denote \(d\) such a function. Hence, the resulting sampling distribution \(s\) is \(x\in[0\,;\,1]\mapsto\frac{1}{(d(x) - 1)\,\ln\left(\frac{n}{L}\right)}\). Still, we have to have \(\int_0^{1-\delta}s(x)\,\mathrm{d}x=1\). Hence, the final sampling distribution \(s\) is:
+        
+        \[\forall x\in[0\,;\,1-\delta],s(x)=\frac{1}{[d(x)-1]\,\int_{0}^{1-\delta}\frac{\mathrm{d}x}{d(x)-1}}\]
+        
+        \autoref{figure:d} represents the graph of \(d\), while \autoref{figure:s} represents the final sampling distribution compared to the previous one.
+                
+        \begin{figure}[ht]
+          \centering
+          \begin{tikzpicture}
+            \begin{axis}[xlabel={Cumulated difficulty}, ylabel={Block position}, no marks]
+              \addplot table[x index=1, y index=0] {data/cumulated_difficulty.txt};
+            \end{axis}
+
+          \end{tikzpicture}
+          \caption{Graph of \(d\)}
+          \label{figure:d}
+        \end{figure}
+        
+        \begin{figure}[ht]
+          \centering
+          \begin{tikzpicture}
+            \begin{axis}[xlabel={Block position}, no marks, legend entries={Variable difficulty, Constant difficulty},legend style={at={(0,1)},anchor=north west}]
+              \addplot table[x index=0, y index=1] {data/sampling_bitcoin.txt};
+              \addplot table[x index=0, y index=2] {data/sampling_bitcoin.txt};
+            \end{axis}
+
+          \end{tikzpicture}
+          \caption{Comparison between the sampling distribution in the constant difficulty case and the one in the variable difficulty case for \(\delta=2^{-10}\)}
+          \label{figure:s}
+        \end{figure}
+        
+        The difference between these two functions being small, it may be more convenient to represent the difference between these two, which is shown on \autoref{figure:difference}.
+        
+        \begin{figure}[ht]
+          \centering
+          \begin{tikzpicture}
+            \begin{axis}[xlabel={Block position}, no marks,grid=major]
+              \addplot table[x index=0, y index=1] {data/difference.txt};
+            \end{axis}
+
+          \end{tikzpicture}
+          \caption{Difference between the sampling distribution in the variable difficulty case and the one in the constant difficulty case for \(\delta=2^{-10}\)}
+          \label{figure:difference}
+        \end{figure}
+
+

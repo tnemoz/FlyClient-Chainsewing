@@ -58,7 +58,7 @@
         \item black blocks are mined by the adversary and contain a MMR root;
         \item dashed arrows correspond to MMR link if it is different from the previous block header hash reference;
         \item snake arrows represents a portion of blocks, be they mined by the adversary or by a honest miner;
-        \item every block is valid regarding to the old protocol rules.
+        \item every block is valid according to the old protocol rules.
       \end{itemize}
     
       \begin{figure}[ht]
@@ -157,7 +157,7 @@ Starting from \(\mathsf{m}=\mathsf{f+j+1}\), which we will call the \textit{merg
       
       A solution for the adversary to avoid this is simply to wait for blocks being mined on top of the main chain. Indeed, the original design of \FC\ makes old blocks less-likely to be sampled. Hence, by doing so, it is high-likely that \(\Cindex{m}\) won't be sampled, and that no inconsistency will be detected when the adversary will send \(\Cindex{f+1}'\).
       
-      In order to circumvent this problem, one may also try to introduce intermediary blocks, valid or not, between \(\Cindex{f+1}'\) and \(\Cindex{m}\). However, since the fork of the adversary has to be of the same length as the corresponding chain portion, the same problem will happen: an inconsistency will be detected between the previous block reference and the MMR root. Indeed, let us consider the situation depicted in \autoref{figure:chainsewingdouble}.
+      In order to circumvent this problem, one may also try to introduce intermediary blocks, valid or not, between \(\Cindex{f+1}'\) and \(\Cindex{m}\). Indeed, the problem here is that since we want \(\Cindex{f+1}'\) accepted, we have to provide the client with it, and this block is somehow too close to \(\Cindex{m}\). Let us consider the situation depicted in \autoref{figure:chainsewingdouble}.
       
       \begin{figure}[ht]
         \centering
@@ -169,10 +169,8 @@ Starting from \(\mathsf{m}=\mathsf{f+j+1}\), which we will call the \textit{merg
           \node[block, above right=of c,fill=black] (cprime1) {};
           \node[below of=cprime1] {\(\Cindex{f+1}'\) };
           \node[block, below right=of c] (c1) {};
-          \node[block, above right=of cprime1, fill=black] (cprime2bis) {};
-          \node[below of=cprime2bis] {\(\Cindex{f+2}'\) };
-          \node[block, below right=of cprime1] (cprime2) {};
-          \node[below of=cprime2] {\(\Cindex{f+2}\) };
+          \node[block, right=of cprime1, fill=black] (cprime2) {};
+          \node[below of=cprime2] {\(\Cindex{f+2}'\) };
           \node[below of=c1] {\(\Cindex{f+1}\) };
           \node[block, right=of c1] (c2) {};
           \node[below of=c2] {\(\Cindex{f+2}\) };
@@ -187,9 +185,8 @@ Starting from \(\mathsf{m}=\mathsf{f+j+1}\), which we will call the \textit{merg
           \path[draw] (cprime1.west) -- (c.north);
           \path[draw] (c1.west) -- (c.south);
           \path[draw] (cprime1) -- (cprime2);
-          \path[draw] (cprime1) -- (cprime2bis);
           \path[draw] (c1) -- (c2);
-          \path[draw, dashed, ->] (c3.north) -- (cprime2bis.east);
+          \path[draw, dashed, ->] (c3.north) -- (cprime2.east);
           \path[draw] (c3.south) -- (c2.east);
           \path[draw, decorate] (c3) -- (k);
           \path[draw,decorate] (k) -- (N);
@@ -198,18 +195,9 @@ Starting from \(\mathsf{m}=\mathsf{f+j+1}\), which we will call the \textit{merg
         \label{figure:chainsewingdouble}
       \end{figure}
         
-      The solution works as follows:
-      
-      \begin{itemize}
-              \item if \(\Cindex{m}\) is not sampled, there is no problem;
-              \item if \(\Cindex{m}\) is sampled, then the adversary has to build a MMR where the hash at place \(f+2\) is the hash of \(\Cindex{f+2}'\).
-      \end{itemize}
+      The adversary significantly increases its probablity of success by doing so, but this is also more difficult to setup. Indeed, several cases of sampling are possible. If neither \(\Cindex{m}\) nor \(\Cindex{f+2}'\) are sampled, there is no problem and the attack succeeds. If \(\Cindex{f+2}'\) is sampled without \(\Cindex{m}\), the attack also succeeds, since \(\Cindex{f+2}'\) is valid both from the previous block reference point of view and from the MMR root point of view. If both \(\Cindex{m}\) and \(\Cindex{f+2}'\) are sampled, the attack fails, since the inconsistency between the previous block reference of \(\Cindex{m}\) and the hash of \(\Cindex{f+2}'\) would then be revealed. Finally, if \(\Cindex{m}\) is the only one to be sampled, then it depends on whether \(m\) is odd. If \(m\) is even, then \(\Cindex{m}\) and \(\Cindex{f+2}'\) will share the same parent node in the MMR the adversary would have built. Hence, the hash of \(\Cindex{f+2}'\) would have to be provided in the MMR proof of the inclusion of \(\Cindex{m}\) within the chain. If \(m\) is odd however, they don't share the same parent node. Hence, the hash of \(\Cindex{f+2}'\) won't appear in the proof and the inconsistency wouldn't be detected.  
 
-      % TODO: Explain why the merging block can't just wait for blocks to be mined and declare them as legacy (because they would have to send them all, can't send (f+1)' in this case)
-      % TODO: Verify this parti, it is not clear
-      The adversary wants to convince the verifier that \(\Cindex{f+1}'\) is within the chain, but the have no control over the values of the leaves number \(f+1\), which contains the hash of \(\Cindex{f+1}'\) and \(f+2\), which contains the hash of \(\Cindex{f+2}\). Indeed, as a recall, their goal is that there is no inconsistency between their previous block reference and their MMR root. For this reason, it is necessary that leaf number \(f+2\) contains the hash of \(\Cindex{f+2}\).   Hence, the only thing they has control on is the MMR proof they send. What the adversary has to do is to create a MMR proof so that the hashes they send add up to the MMR root in \(\Cindex{m}\). However, it means that the adversary has to find a hash so that everything adds up correctly to the MMR root. Since the hash function used is believed to be pre-image resistant, this is computationally infeasible. Plus, a sampling where both \(\Cindex{m}\) and \(\Cindex{f+2}\) are sampled would also reveal an inconsistency.
-      
-      Getting back to the \textit{chain-sewing attack}, the reason why this works on a velvet fork only is that an adversary is allowed to put some Fake MMR root in a block header of the main chain. In particular, the following was outlined in the \FC\ paper: \enquote{once a malicious prover forks off from the honest chain, it cannot include any of the later honest blocks in its chain because the MMR root in those blocks would not match the chain} \cite{\FCCite}.
+      Getting back to the \textit{chain-sewing attack}, the reason why this works on a velvet fork only is that an adversary is allowed to put some fake MMR root in a block header of the main chain. In particular, the following was outlined in the \FC\ paper: \enquote{once a malicious prover forks off from the honest chain, it cannot include any of the later honest blocks in its chain because the MMR root in those blocks would not match the chain} \cite{\FCCite}.
       
       In particular, the adversary is not forced to create a fork as long as the main chain, eventually creating fake blocks. We may note that this attack works as long as the fork created by the adversary is as long as the corresponding chain portion. The adversary can also include fake blocks in its fork to have a longer fork while sticking to this constraint. Even though this increases the probability of getting caught as every fake block sampled results in a failed proof, waiting long enough once the fork has been merged is enough for hoping that these blocks won't be sampled. Hence, the attack also works with longer forks.
       

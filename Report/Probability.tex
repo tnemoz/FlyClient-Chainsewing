@@ -1,0 +1,131 @@
+      The adversary has two main strategies: creating a fork of length 1 without any fake blocks, as depicted in \autoref{figure:chainsewingattack}, or creating a longer fork, potentially with including fake blocks within it, as depicted in \autoref{figure:chainsewingdouble}. Both these strategies requires the adversary to mine the merging block. Hence, this will be the first part of our analysis. The notations that will be used will be those of \autoref{table:notations}.
+      
+      \section{Probability for the attacker to mine the merging block}
+        If the adversary manages to mine the forking block before a honest miner mines the corresponding honest block, then the adversary has a probability \(\alpha\) of mining the forking block, since a ratio \(\alpha\) of the blocks are mined by the adversary. For a fork of length \(F>2\), the adversary has in average to place \((1-\alpha)\,F\) fake blocks in it. Following the strategy of giving up on a block (hence placing a fake one) as soon as the corresponding honest block is mined, the probability of creating a fork of an arbitrary length is \(\alpha\), since it is the probability of mining the merging block once the fork is of desired length.
+        
+        In order not to have lost computational power, the adversary can, if they doesn't mine the merging block, try to add a fake block to the fork and try again to mine the merging block. This doesn't impact the probability of success of this part, but impact the one of getting caught. In average, following this strategy, the adversary will add \(\frac{1-\alpha}{\alpha}\) fake blocks to the fork.
+
+      \section{Probability for a block to be sampled under a constant difficulty}
+        Let us assume that:
+        \begin{itemize}
+          \item the chain has a total of \(n\) blocks;
+          \item the merging block is at position \(m\) in the chain;
+          \item \((x_1,\cdots,x_k)\) are the increasing positions of the fake blocks in the fork.
+        \end{itemize}
+        
+        The probability that a block at position \(x\geqslant n-\delta\) is sampled is 1, while the probability that a block at position \(x< n-\delta\) is:
+        
+        \begin{align*}
+          p_x &= \frac{1}{\ln\left(\frac{\delta}{n}\right)}\int_{\frac{x}{n}}^{\frac{x+1}{n}}\frac{\mathrm{d}t}{t-1}\\
+          &= \frac{\ln\left(\left|\frac{x+1}{n}-1\right|\right)-\ln\left(\left|\frac{x}{n}-1\right|\right)}{\ln\left(\frac{\delta}{n}\right)}\\
+          &= \frac{\ln\left(1-\frac{1}{n-x}\right)}{\ln\left(\frac{\delta}{n}\right)}\\
+          &= \frac{\ln\left(1+\frac{1}{n-x-1}\right)}{\ln\left(\frac{n}{\delta}\right)}
+        \end{align*}
+
+        Using these two probabilities, we are now able to compute the probability of success of the attack following the two strategies mentioned above.
+
+        \section{Probability for the attack to succeed using a fork of length 1}
+          In order for this attack to succeed, two things are necessary:
+
+          \begin{itemize}
+            \item the adversary has to mine the merging block while already having mined the forking block;
+            \item the merging block should not be sampled by the client.
+          \end{itemize}
+
+          Both these probabilities are easy to compute. Indeed, let us consider that at position \(f\), the adversary tries to mine the forking block. if they manage to mine \(\Cindex{f+1}'\) before they heard about \(\Cindex{f+1}\), then they wait for \(\Cindex{f+1}\) and, once they received it, try to mine the merging block \(\Cindex{f+2}\). It is actually possible that the adversary manages to mine \(\Cindex{f+2}\) even if they mined \(\Cindex{f+1}'\) after they heard about \(\Cindex{f+1}\), but since it lowers their probability to mine the merging block, their best bet is to give up on trying to mine \(\Cindex{f+1}'\) and to try again on \(\Cindex{f+2}'\).
+
+          Hence, the probability that the adversary manages to do this is at least \(\alpha^2\). Combining this with the probability that the merging block is sampled, the probability of success of the attack is at least:
+
+          \[
+                  \alpha^2\,\frac{\ln\left(1+\frac{1}{n-m-1}\right)}{\ln\left(\frac{\delta}{n}\right)}
+          .\] 
+
+          Note however that this is a two-steps process: firstly, the adversary mines the blocks, then they try to convince the client about the inclusion of \(\Cindex{f+1}'\) within the chain. Hence, the probability that the adversary succeeds once they have mined both the forking and the merging block is now simply:
+
+         \[        
+                  \frac{\ln\left(1+\frac{1}{n-m-1}\right)}{\ln\left(\frac{\delta}{n}\right)}
+         .\]
+
+        \section{Probability for the attack to succeed using a longer fork}
+          % TODO
+        
+      \section{Probability for the merging block or fake blocks to be sampled using the Bitcoin protocol}
+        \FC\ can be implemented to work on a blockchain with a variable difficulty, like the Bitcoin one. The velvet fork attack works just the same as in the constant difficulty case. The goal of this section is to show that the computations maade in the previous sections are still close to reality when the underlying protocol uses variable difficulty.
+        
+        Indeed, the previous analysis considers the input space \([0\,;\,1]\) of the distribution function as a variable that ranges over blocks. For instance, \(x=\frac12\) roughly corresponds to the block at position \(\frac{n}{2}\) in the blockchain. However, as described in \cite{\FCCite}, one can adapt \FC\ to work with variable difficulty by considering \([0\,;\,1]\) as a variable that ranges over the difficulty. For instance, \(x=\frac{1}{2}\) roughly corresponds to the block where \(\frac12\) of the total computational power has been mined. This is actually a generalization of the previous process: under a constant difficulty, half of the total computational power has been spent roughly at block \(\frac{n}{2}\).
+        
+        Using data from \cite{BTCDifficulty}, we can plot the graph of the Bitcoin difficulty over time, using \([0\,;\,1]\) as an space that ranges over blocks, which is shown on \autoref{figure:diff1}.
+        
+        \begin{figure}[ht]
+          \centering
+          \begin{tikzpicture}
+            \begin{axis}[ylabel={Difficulty}, no marks, width=.6\textwidth]
+              \addplot table[x index=0, y index=1] {data/difficulty.txt};
+            \end{axis}
+
+          \end{tikzpicture}
+          \caption{Difficulty of the Bitcoin protocol}
+          \label{figure:diff1}
+        \end{figure}
+        
+        However, what we're interested in is the cumulated difficulty over time, which is shown on \autoref{figure:diff2} and which we denote \(d\).
+        
+        \begin{figure}[ht]
+          \centering
+          \begin{tikzpicture}
+            \begin{axis}[xlabel={Block position},ylabel={Cumulated difficulty}, no marks, width=.6\textwidth]
+              \addplot table[x index=0, y index=1] {data/cumulated_difficulty.txt};
+            \end{axis}
+
+          \end{tikzpicture}
+          \caption{Cumulated difficulty of the Bitcoin protocol}
+          \label{figure:diff2}
+        \end{figure}
+        
+        Since what we essentially want is to translate a variable that ranges over the block space to a variable, we denote \(d\) such a function. Hence, the resulting sampling distribution \(s\) is \(x\in[0\,;\,1]\mapsto\frac{1}{(d(x) - 1)\,\ln\left(\frac{n}{L}\right)}\). Still, we have to have \(\int_0^{1-\delta}s(x)\,\mathrm{d}x=1\). Hence, the final sampling distribution \(s\) is:
+        
+        \[\forall x\in[0\,;\,1-\delta],s(x)=\frac{1}{[d(x)-1]\,\int_{0}^{1-\delta}\frac{\mathrm{d}x}{d(x)-1}}\]
+        
+        \autoref{figure:d} represents the graph of \(d\), while \autoref{figure:s} represents the final sampling distribution compared to the previous one.
+                
+        \begin{figure}[ht]
+          \centering
+          \begin{tikzpicture}
+            \begin{axis}[xlabel={Cumulated difficulty}, ylabel={Block position}, no marks, width=.6\textwidth]
+              \addplot table[x index=1, y index=0] {data/cumulated_difficulty.txt};
+            \end{axis}
+
+          \end{tikzpicture}
+          \caption{Graph of \(d\)}
+          \label{figure:d}
+        \end{figure}
+        
+        \begin{figure}[ht]
+          \centering
+          \begin{tikzpicture}
+            \begin{axis}[xlabel={Block position}, no marks, legend entries={Variable difficulty, Constant difficulty},legend style={at={(0,1)},anchor=north west}, width=.6\textwidth]
+              \addplot table[x index=0, y index=1] {data/sampling_bitcoin.txt};
+              \addplot table[x index=0, y index=2] {data/sampling_bitcoin.txt};
+            \end{axis}
+
+          \end{tikzpicture}
+          \caption{Comparison between the sampling distribution in the constant difficulty case and the one in the variable difficulty case for \(\delta=2^{-10}\)}
+          \label{figure:s}
+        \end{figure}
+        
+        The difference between these two functions being small, it may be more convenient to represent the difference between these two, which is shown on \autoref{figure:difference}.
+        
+        \begin{figure}[ht]
+          \centering
+          \begin{tikzpicture}
+            \begin{axis}[xlabel={Block position}, no marks,grid=major, width=.6\textwidth]
+              \addplot table[x index=0, y index=1] {data/difference.txt};
+            \end{axis}
+
+          \end{tikzpicture}
+          \caption{Difference between the sampling distribution in the variable difficulty case and the one in the constant difficulty case for \(\delta=2^{-10}\)}
+          \label{figure:difference}
+        \end{figure}
+
+
+

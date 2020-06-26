@@ -1,9 +1,9 @@
       The adversary has two main strategies: creating a fork of length 1 without any fake blocks, as depicted in \autoref{figure:chainsewingattack}, or creating a longer fork, potentially with including fake blocks within it, as depicted in \autoref{figure:chainsewingdouble}. Both these strategies requires the adversary to mine the merging block. Hence, this will be the first part of our analysis. The notations that will be used will be those of \autoref{table:notations}.
       
       \section{Probability for the attacker to mine the merging block}
-        If the adversary manages to mine the forking block before a honest miner mines the corresponding honest block, then the adversary has a probability \(\alpha\) of mining the forking block, since a ratio \(\alpha\) of the blocks are mined by the adversary. For a fork of length \(F>2\), the adversary has in average to place \((1-\alpha)\,F\) fake blocks in it. Following the strategy of giving up on a block (hence placing a fake one) as soon as the corresponding honest block is mined, the probability of creating a fork of an arbitrary length is \(\alpha\), since it is the probability of mining the merging block once the fork is of desired length.
+        If the adversary manages to mine the forking block before a honest miner mines the corresponding honest block, then the adversary has a probability \(\mu\) of mining the forking block, since a ratio \(\mu\) of the blocks are mined by the adversary. For a fork of length \(F>2\), the adversary has in average to place \((1-\mu)\,F\) fake blocks in it. Following the strategy of giving up on a block (hence placing a fake one) as soon as the corresponding honest block is mined, the probability of creating a fork of an arbitrary length is \(\mu\), since it is the probability of mining the merging block once the fork is of desired length.
         
-        In order not to have lost computational power, the adversary can, if they doesn't mine the merging block, try to add a fake block to the fork and try again to mine the merging block. This doesn't impact the probability of success of this part, but impact the one of getting caught. In average, following this strategy, the adversary will add \(\frac{1-\alpha}{\alpha}\) fake blocks to the fork.
+        In order not to have lost computational power, the adversary can, if they doesn't mine the merging block, try to add a fake block to the fork and try again to mine the merging block. This doesn't impact the probability of success of this part, but impact the one of getting caught. In average, following this strategy, the adversary will add \(\frac{1-\mu}{\mu}\) fake blocks to the fork.
 
       \section{Probability for a block to be sampled under a constant difficulty}
         Let us assume that:
@@ -13,13 +13,12 @@
           \item \((x_1,\cdots,x_k)\) are the increasing positions of the fake blocks in the fork.
         \end{itemize}
         
-        The probability that a block at position \(x\geqslant n-\delta\) is sampled is 1, while the probability that a block at position \(x< n-\delta\) is:
+        The probability that a block at position \(x\geqslant n\,(1-\delta)\) is sampled is 1, while the probability that a block at position \(x< n\,(1-\delta)\) is:
         
         \begin{align*}
-          p_x &= \frac{1}{\ln\left(\frac{\delta}{n}\right)}\int_{\frac{x}{n}}^{\frac{x+1}{n}}\frac{\mathrm{d}t}{t-1}\\
-          &= \frac{\ln\left(\left|\frac{x+1}{n}-1\right|\right)-\ln\left(\left|\frac{x}{n}-1\right|\right)}{\ln\left(\frac{\delta}{n}\right)}\\
-          &= \frac{\ln\left(1-\frac{1}{n-x}\right)}{\ln\left(\frac{\delta}{n}\right)}\\
-          &= \frac{\ln\left(1+\frac{1}{n-x-1}\right)}{\ln\left(\frac{n}{\delta}\right)}
+          p_x &= \frac{1}{\ln(\delta)}\int_{\frac{x}{n}}^{\frac{x+1}{n}}\frac{\mathrm{d}t}{t-1}\\
+              &= \frac{\ln\left(\left|\frac{x+1}{n}-1\right|\right)-\ln\left(\left|\frac{x}{n}-1\right|\right)}{\ln(\delta)}\\
+              &= \frac{\ln\left(1-\frac{1}{n-x}\right)}{\ln(\delta)}.
         \end{align*}
 
         Using these two probabilities, we are now able to compute the probability of success of the attack following the two strategies mentioned above.
@@ -34,16 +33,16 @@
 
           Both these probabilities are easy to compute. Indeed, let us consider that at position \(f\), the adversary tries to mine the forking block. if they manage to mine \(\Cindex{f+1}'\) before they heard about \(\Cindex{f+1}\), then they wait for \(\Cindex{f+1}\) and, once they received it, try to mine the merging block \(\Cindex{f+2}\). It is actually possible that the adversary manages to mine \(\Cindex{f+2}\) even if they mined \(\Cindex{f+1}'\) after they heard about \(\Cindex{f+1}\), but since it lowers their probability to mine the merging block, their best bet is to give up on trying to mine \(\Cindex{f+1}'\) and to try again on \(\Cindex{f+2}'\).
 
-          Hence, the probability that the adversary manages to do this is at least \(\alpha^2\). Combining this with the probability that the merging block is sampled, the probability of success of the attack is at least:
+          Hence, the probability that the adversary manages to do this is at least \(\mu^2\). Combining this with the probability that the merging block is sampled, the probability of success of the attack is at least:
 
           \[
-                  \alpha^2\,\frac{\ln\left(1+\frac{1}{n-m-1}\right)}{\ln\left(\frac{\delta}{n}\right)}
+                  \mu^2\,\frac{\ln\left(1-\frac{1}{n-m}\right)}{\ln(\delta)}
           .\] 
 
           Note however that this is a two-steps process: firstly, the adversary mines the blocks, then they try to convince the client about the inclusion of \(\Cindex{f+1}'\) within the chain. Hence, the probability that the adversary succeeds once they have mined both the forking and the merging block is now simply:
 
          \[        
-                  \frac{\ln\left(1+\frac{1}{n-m-1}\right)}{\ln\left(\frac{\delta}{n}\right)}
+                  \frac{\ln\left(1-\frac{1}{n-m}\right)}{\ln(\delta)}
          .\]
 
         \section{Probability for the attack to succeed using a longer fork}

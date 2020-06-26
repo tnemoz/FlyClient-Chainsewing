@@ -4,9 +4,9 @@
       The idea is that the adversary can put arbitrary data in the interlink field. Hence, they can put interlink data that is invalid for honest miners but that may be considered valid by the verifier. Such an attack on \FC\ is described in \autoref{section:attack}.
     \section{Notations}
       \label{section:notations}
-      We may begin with describing the notations that we will use throughout our analysis. We consider a blockchain \(\mathsf{C}\) consisting in \(n\) blocks. Amongst all nodes running this chain, a portion \(\alpha\) of them are malicious and work for a single adversary. To put things differently, we assume the existence of an adversary such that the ratio between their computational power and the total computational power of the network is \(\alpha\). We use a Python-like indexing of the blockchain \(\mathsf{C}\). That is, the genesis block is denoted \(\mathsf{C[}0\mathsf{]}\), the last block \(\mathsf{C[}-1\mathsf{]}\) or \(\mathsf{C[}n-1\mathsf{]}\) and we can represent the portion of the chain from block  \(i\) (inclusive) to block \(j\) (exclusive) with  \(\mathsf{C[}i\mathsf{:}j\mathsf{]}\). We use the same notations for denoting blocks in the adversary's fork, at the exception that we append \('\) to their name, like \(\mathsf{C[}i\mathsf{]}'\) for instance.    
+      We may begin with describing the notations that we will use throughout our analysis. We consider a blockchain \(\mathsf{C}\) consisting in \(n\) blocks. Amongst all nodes running this chain, a portion \(\mu\) of them are malicious and work for a single adversary. To put things differently, we assume the existence of an adversary such that the ratio between their computational power and the total computational power of the network is \(\mu\). We use a Python-like indexing of the blockchain \(\mathsf{C}\). That is, the genesis block is denoted \(\mathsf{C[}0\mathsf{]}\), the last block \(\mathsf{C[}-1\mathsf{]}\) or \(\mathsf{C[}n-1\mathsf{]}\) and we can represent the portion of the chain from block  \(i\) (inclusive) to block \(j\) (exclusive) with  \(\mathsf{C[}i\mathsf{:}j\mathsf{]}\). We use the same notations for denoting blocks in the adversary's fork, at the exception that we append \('\) to their name, like \(\mathsf{C[}i\mathsf{]}'\) for instance.    
 
-      We work under the  \((c,L)\)-assumption, as described in \cite{\FCCite}. Fundamentally, it bounds the adversary computational power: if the adversary owns a fork of length \(L\) such that their own chain is as long as the main chain, it is impossible that a larger fraction than $c$ of these blocks valid with respect to the protocol rules. As a recall, \FC\ will always sample the last \(\ln\left(\frac{n}{L}\right)\) fraction of the blockchain's blocks. \(\delta\) is the number of blocks sampled with probability 1, that are the ones at the top of the chain.  
+      We work under the  \((c,L)\)-assumption, as described in \cite{\FCCite}. Fundamentally, it bounds the adversary computational power: if the adversary owns a fork of length \(L\) such that their own chain is as long as the main chain, it is impossible that a larger fraction than $c$ of these blocks are valid with respect to the protocol rules. As a recall, \FC\ will always sample the last \(\delta\) fraction of the blockchain's blocks. While we will use \(\delta\) in our analysis, it is important to keep in mind that \(\delta\) can be directly derived from the \((c,L)\)-adversary assumption.    
 
       Finally, two blocks are special regarding the \textit{chain-sewing} attack: what we call in the following the \emph{forking block}  \(f\) and the \emph{merging block} \(m\). Both these blocks are described in the next section. \autoref{table:notations} summarizes the notations used throughout the analysis.
 
@@ -20,7 +20,7 @@
           \hline
           Blockchain length &  \(n\)\\
           \hline
-          Adversary's computational power &  \(\alpha\)\\
+          Adversary's computational power &  \(\mu\)\\
           \hline
           Block  \(i\) of the chain &  \(\mathsf{C[}i\mathsf{]}\)\\
           \hline
@@ -34,7 +34,7 @@
           \hline
           Position of the merging block &  \(m\)\\
           \hline
-          Number of blocks sampled with probability 1 at the end of the chain & \(\delta\)\\
+          Fraction of block sampled with probability 1 at the end of the chain & \(\delta\)\\
           \hline
         \end{tabular}
         \caption{Notations used throughout the analysis}
@@ -79,7 +79,7 @@
             \node[block, above right=of cj, fill=black] (cj1) {};
             \node[below of=cj1] {\(\mathsf{C[}m\mathsf{]}\) };
             \node[block, right=of cj1] (k) {};
-            \node[below of=k] {\(\mathsf{C[}n-k\mathsf{]}\) };
+            \node[below of=k] {\(\Cindex{n\,(1-\delta)}\) };
             \node[block, right=of k] (N) {};
             \node[below of=N] {\(\mathsf{C}[-1\mathsf{]}\) };
             
@@ -97,7 +97,7 @@
           \label{figure:chainsewingattempt}
         \end{figure}
       
-Starting from \(\mathsf{m}=\mathsf{f+j+1}\), which we will call the \textit{merging block} from now on, every block mined by the adversary will contain a MMR root corresponding to the MMR where the portion \(\mathsf{C[}f+1:f+j+1\mathsf{]}\) has been replaced with the adversary's fork, and where all honest miner's blocks are considered as legacy blocks. Once in this situation, a number \(n-m>k\) of blocks are mined on top of \(\mathsf{C[}f+j+1\mathsf{]}\). In order to have, let us say, \(\mathsf{C[}f+1\mathsf{]}'\) accepted, the adversary must:
+        Starting from \(m=f+j+1\), which we will call the \textit{merging block} from now on, every block mined by the adversary will contain a MMR root corresponding to the MMR where the portion \(\mathsf{C[}f+1:f+j+1\mathsf{]}\) has been replaced with the adversary's fork, and where all honest miner's blocks are considered as legacy blocks. Once in this situation, a number \(n-m>n\,(1-\delta)\) of blocks are mined on top of \(\mathsf{C[}f+j+1\mathsf{]}\). In order to have, let us say, \(\mathsf{C[}f+1\mathsf{]}'\) accepted, the adversary must:
       
       \begin{itemize}
         \item convince the verifier that they hold a chain \(\mathsf{C}'\) that is as long as the main chain;
@@ -133,7 +133,7 @@ Starting from \(\mathsf{m}=\mathsf{f+j+1}\), which we will call the \textit{merg
             \node[block, above right=of c1, fill=black] (c2) {};
             \node[below of=c2] {\(\Cindex{m}\) };
             \node[block, right=of c2] (k) {};
-            \node[below of=k] {\(\Cindex{n-k}\) };
+            \node[below of=k] {\(\Cindex{n\,(1-\delta)}\) };
             \node[block, right=of k] (N) {};
             \node[below of=N] {\(\Cindex{-1}\) };
             
@@ -177,7 +177,7 @@ Starting from \(\mathsf{m}=\mathsf{f+j+1}\), which we will call the \textit{merg
           \node[block, above right=of c2, fill=black] (c3) {};
           \node[below of=c3] {\(\Cindex{m}\) };
           \node[block, right=of c3] (k) {};
-          \node[below of=k] {\(\Cindex{n-k}\) };
+          \node[below of=k] {\(\Cindex{n\,(1-\delta)}\) };
           \node[block, right=of k] (N) {};
           \node[below of=N] {\(\Cindex{-1}\) };
           

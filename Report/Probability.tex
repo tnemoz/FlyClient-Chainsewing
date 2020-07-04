@@ -1,16 +1,16 @@
       The adversary has two main strategies: creating a fork of length 1 without any fake blocks, as depicted in \autoref{figure:chainsewingattack}, or creating a longer fork, potentially with including fake blocks within it, as depicted in \autoref{figure:chainsewingdouble}. Both these strategies requires the adversary to mine the merging block. Hence, this will be the first part of our analysis. The notations that will be used will be those of \autoref{table:notations}.
       
       \section{Probability for the attacker to mine the merging block}
+        \label{section:miningprob}
         If the adversary manages to mine the forking block before a honest miner mines the corresponding honest block, then the adversary has a probability \(\mu\) of mining the forking block, since a ratio \(\mu\) of the blocks are mined by the adversary. For a fork of length \(F>2\), the adversary has in average to place \((1-\mu)\,F\) fake blocks in it. Following the strategy of giving up on a block (hence placing a fake one) as soon as the corresponding honest block is mined, the probability of creating a fork of an arbitrary length is \(\mu\), since it is the probability of mining the merging block once the fork is of desired length.
         
-        In order not to have lost computational power, the adversary can, if they doesn't mine the merging block, try to add a fake block to the fork and try again to mine the merging block. This doesn't impact the probability of success of this part, but impact the one of getting caught. In average, following this strategy, the adversary will add \(\frac{1-\mu}{\mu}\) fake blocks to the fork.
+        In order not to have lost computational power, the adversary can, if they don't mine the merging block, try to add a fake block to the fork and try again to mine the merging block. This doesn't impact the probability of success of this part, but impact the one of getting caught. In average, following this strategy, the adversary will add \(\frac{1-\mu}{\mu}\) fake blocks to the fork.
 
       \section{Probability for a block to be sampled under a constant difficulty}
         Let us assume that:
         \begin{itemize}
           \item the chain has a total of \(n\) blocks;
-          \item the merging block is at position \(m\) in the chain;
-          \item \((x_1,\cdots,x_k)\) are the increasing positions of the fake blocks in the fork.
+          \item the merging block is at position \(m\) in the chain.
         \end{itemize}
         
         The probability that a block at position \(x\geqslant n\,(1-\delta)\) is sampled is 1, while the probability that a block at position \(x< n\,(1-\delta)\) is:
@@ -33,23 +33,65 @@
 
           Both these probabilities are easy to compute. Indeed, let us consider that at position \(f\), the adversary tries to mine the forking block. if they manage to mine \(\Cindex{f+1}'\) before they heard about \(\Cindex{f+1}\), then they wait for \(\Cindex{f+1}\) and, once they received it, try to mine the merging block \(\Cindex{f+2}\). It is actually possible that the adversary manages to mine \(\Cindex{f+2}\) even if they mined \(\Cindex{f+1}'\) after they heard about \(\Cindex{f+1}\), but since it lowers their probability to mine the merging block, their best bet is to give up on trying to mine \(\Cindex{f+1}'\) and to try again on \(\Cindex{f+2}'\).
 
-          Hence, the probability that the adversary manages to do this is at least \(\mu^2\). Combining this with the probability that the merging block is sampled, the probability of success of the attack is at least:
+          Hence, the probability that the adversary manages to do this is at least \(\mu^2\). Combining this with the probability that the merging block is not sampled, the probability of success of the attack is at least:
 
           \[
-                  \mu^2\,\frac{\ln\left(1-\frac{1}{n-m}\right)}{\ln(\delta)}
+                  \mu^2\,\left[1-\frac{\ln\left(1-\frac{1}{n-m}\right)}{\ln(\delta)}\right]
           .\] 
 
           Note however that this is a two-steps process: firstly, the adversary mines the blocks, then they try to convince the client about the inclusion of \(\Cindex{f+1}'\) within the chain. Hence, the probability that the adversary succeeds once they have mined both the forking and the merging block is now simply:
 
          \[        
-                  \frac{\ln\left(1-\frac{1}{n-m}\right)}{\ln(\delta)}
+                  1-\frac{\ln\left(1-\frac{1}{n-m}\right)}{\ln(\delta)}
          .\]
 
         \section{Probability for the attack to succeed using a longer fork}
-          % TODO
+        The previous attack assumed that no fake block was placed in the fork, since the forking block \(\Cindex{f+1}'\) and the merging block \(\Cindex{m}\) have to be honest regarding to the old protocol rules. Hence, this section describes more generally how an adversary can benefit from placing fake blocks after \(\Cindex{f+1}'\) and before \(\Cindex{m}\).
+
+        When using a longer fork, the adversary has more strategies at their disposal. While they still have to mine both the merging and the forking blocks, they can choose concerning \(\Cindex{f+2}'\):
+
+        \begin{itemize}
+          \item to try to mine it, so that they reduce the probability of getting caught;
+          \item to place a fake block, so that they don't need to race against the main chain;
+          \item to stop after it has been mined, honestly or not, or to continue.
+        \end{itemize}
+
+        Actually, the adversary never takes advantage from placing a fake block. Even though it may be interesting in order to ensure that \(m\) is odd, it also imply that sampling this block results in getting caught by the client. Hence, the only case where the adversary may want to put a fake block is in order not to have lost computational power when setting up the attack. Indeed, as a recall, the adversary has to mine \(\Cindex{f+1}'\), which makes them basically lose money since they don't mine on the main chain. If the adversary does not manage to mine \(\Cindex{f+2}'\) before they hear about \(\Cindex{f+2}\), they will most likely fail to mine the merging block, since the main chain would have begin to try to do so by then. An adversary with a lot of computational power may still try to mine honestly \(\Cindex{f+2}'\) and then to mine \(\Cindex{m}\). The optimality of this case will be discussed in \autoref{section:mdp}.
+
+        The adversary still has to mine honestly \(\Cindex{f+1}'\). Assuming that they follow the strategy according to which they give up if they don't manage to do it before they hear about \(\Cindex{f+1}\), they manage to mine \(\Cindex{f+1}'\) with probability \(\mu\). Then, they try to mine \(\Cindex{f+2}'\). With probability at least \(\mu\), they manage to do it before they hear about \(\Cindex{f+2}'\). As a recall, because of the previous mining strategy concerning the forking block, the adversary will begin to try to mine \(\Cindex{f+2}'\) before the main chain even began to try to mine \(\Cindex{f+2}\). If they manage to mine \(\Cindex{f+2}'\), then they wait for hearing about \(\Cindex{f+2}\) so that they can try to mine the merging block. If they don't, they place a fake block in lieu of what should have been the merging block in their fork and try again. As stated in \autoref{section:miningprob}, they will in average place \(\frac{1-\mu}{\mu}\) fake blocks before managing to mine the merging block.
+
+        In order for the attack to succeed, it is necessary that:
+
+        \begin{itemize}
+          \item no fake block is sampled;
+          \item \(\Cindex{f+2}'\) is not sampled if it is fake; 
+          \item \(\Cindex{m}\) and \(\Cindex{m-1}'\) are not both sampled;
+          \item \(\Cindex{m}\) is not sampled if \(m\) is even.  
+        \end{itemize}
+
+        The probability that no fake block is sampled (excluding \(\Cindex{f+2}'\)) is at least \(1-(m-f-3)\,p_{m-1}\). Hence, in average, the probability of success for this attack is at least:
+
+        \[
+                \mu\,\left[\mu+(1-\mu)\,\left(1-p_{f+2}\right)\right]\,\left[1-\frac{1-\mu}{\mu}\,p_{m-1}\right]\,\left[\frac12\,p_m\,p_{m-1}+1-p_m\right]
+        .\] 
+
+        However, and this is when it becomes interesting for the adversary, it is possible to prepare this attack. The adversary has the possibility to try to run this attack without including fake blocks, which they manage with probability \(\mu^3\). Once the attack is set up, it is only necessary that either \(\Cindex{m}\) is not sampled, or, if \(\Cindex{m}\) is sampled, that \(\Cindex{f+2}'\) is not sampled. Since the adversary prepares the attack, they can also begin the attack at position \(f\) with \(f\) being even, so that \(m\) is odd in case of success. Hence, for a prepared attack, the probability of success is:
+
+        \begin{align*}
+          p_{\text{success}} &= 1-p_m+p_m\,\left(1-p_{f+2}\right)\\
+                             &= 1 - p_m\,p_{f+2}\\
+                             &= 1 - p_m\,p_{m-1}\\
+                             &= 1 - \frac{\ln\left(1-\frac{1}{n-m}\right)\,\ln\left(1-\frac{1}{n-m+1}\right)}{\ln^2(\delta)}\\
+                             &\geqslant 1 - \frac{\ln^2\left(1-\frac{1}{n-m}\right)}{\ln^2(\delta)}
+        \end{align*}
+
+        Overall, this strategy is riskier than the previous one, since including a fake block implies that sampling that one block results in failing, just like before. However, it is safer to use it when it is possible to prepare the attack, that is to mine the blocks correctly, and to retry until the perfect case happens.
+
+      \section{Deriving the optimal strategy from a Markov Decision Process}
+        \label{section:mdp}
         
       \section{Probability for the merging block or fake blocks to be sampled using the Bitcoin protocol}
-        \FC\ can be implemented to work on a blockchain with a variable difficulty, like the Bitcoin one. The velvet fork attack works just the same as in the constant difficulty case. The goal of this section is to show that the computations maade in the previous sections are still close to reality when the underlying protocol uses variable difficulty.
+        \FC\ can be implemented to work on a blockchain with a variable difficulty, like the Bitcoin one. The velvet fork attack works just the same as in the constant difficulty case. The goal of this section is to show that the computations made in the previous sections are still close to reality when the underlying protocol uses variable difficulty.
         
         Indeed, the previous analysis considers the input space \([0\,;\,1]\) of the distribution function as a variable that ranges over blocks. For instance, \(x=\frac12\) roughly corresponds to the block at position \(\frac{n}{2}\) in the blockchain. However, as described in \cite{\FCCite}, one can adapt \FC\ to work with variable difficulty by considering \([0\,;\,1]\) as a variable that ranges over the difficulty. For instance, \(x=\frac{1}{2}\) roughly corresponds to the block where \(\frac12\) of the total computational power has been mined. This is actually a generalization of the previous process: under a constant difficulty, half of the total computational power has been spent roughly at block \(\frac{n}{2}\).
         

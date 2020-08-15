@@ -1,4 +1,4 @@
-\documentclass[11pt]{report}
+\documentclass[11pt, twoside]{report}
 
 \newcommand{\reporttitle}{Don't Trust, Verify! Cryptography and Games for Cross-Blockchain Payments (Centre for Cryptocurrency Research and Engineering)}
 \newcommand{\reportauthor}{Tristan Nemoz}
@@ -21,7 +21,7 @@
   \begin{abstract}
     As an alternative to Simplified Payment Verification \cite{Bitcoin}, a new type of blockchain client emerged: \textit{superlight} clients, also called \textit{sublinear} clients. These alternatives, such as \FC\ \cite{\FCCite} or Superblock \cite{\NipoCite} aim at reducing the number of block headers to send to a verifier to prove the inclusion of a transaction within a blockchain. Specifically, the size of the proofs grows logarithmically with the size of the main chain, while SPV clients proofs grow linearly with the size of the chain. However, it is not clear yet how such an alternative could be deployed on an already existing chain. A convenient way, called a velvet fork \cite{Velvet} is considered as a viable method to do so.
     
-    We present a novel kind of attack, called the \textit{chain-sewing} attacks. Initially imagined by Andrianna Polydouri and Dionysis Zindros against Superblock clients deployed as a velvet fork, we show that a similar attack can be run against \FC\ when deployed as a velvet fork and propose countermeasures to this attack.
+    We present a novel kind of attack, called the \cs\ attacks. Initially imagined by Andrianna Polydouri and Dionysis Zindros against Superblock clients deployed as a velvet fork, we show that a similar attack can be run against \FC\ when deployed as a velvet fork and propose countermeasures to this attack.
   \end{abstract}
 
   \cleardoublepage
@@ -38,13 +38,19 @@
   \chapter{Introduction}
     \input{Introduction}
   \chapter{Background}
+    \printglossary[type=\acronymtype]
     \input{Background}
-  \chapter{\textit{Chain-sewing} attacks on \FC}
+  \chapter{\CS\ attacks on \FC}
     \input{Chainsewing.tex}
-  \chapter[Probability of success]{Probability of success of the \textit{chain-sewing} attack on \FC}
+  \chapter[Probability of success]{Analysis of the \cs\ attack on \FC}
     \label{chapter:probability}
     \input{Probability}
-  \chapter{Mitigating the \textit{chain-sewing} attack on \FC}
+  \chapter{Mitigating the \cs\ attack on \FC}
     \input{Mitigating}
   \printbibliography
+  \appendix
+  \chapter{Computing the distribution of the sum of independent random variables following the same geometric distribution}
+    \input{appendix-geometric}
+  \chapter{Additional figures for the analysis of the \cs\ attack on \FC}
+    \input{appendix-figures}
 \end{document}

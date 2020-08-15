@@ -1,0 +1,122 @@
+\newacronym{utxo}{UTXO}{Unspent transaction output}
+\newacronym{pow}{PoW}{Proof of Work}
+\newacronym{pos}{PoS}{Proof of Stake}
+
+\newglossaryentry{mu}{
+    type=notations,
+    name={\ensuremath{\mu}},
+    description={Adversarial computational power},
+    sort={mu}
+}
+
+\newglossaryentry{C}{
+    type=notationschainsewing,
+    name={\ensuremath{\mathsf{C}}},
+    description={Blockchain},
+    sort={C}
+}
+
+\newglossaryentry{Cost}{
+    type=notationsprobabilities,
+    name={\ensuremath{C}},
+    description={Cost (in USD) to setup the attack},
+    sort={Cost}
+}
+
+\newglossaryentry{G}{
+    type=notations,
+    name={\ensuremath{\overline{G}}},
+    description={Adversarial gain for succeeding in having the client accept a fake block},
+    sort={G}
+}
+
+\newglossaryentry{n}{
+    type=notations,
+    name={\ensuremath{n}},
+    description={Blockchain length},
+    sort={n}
+}
+
+\newglossaryentry{cL}{
+    type=notationschainsewing,
+    name={\ensuremath{(c,L)}},
+    description={\((c,L)\)-adversary assumption},
+    sort={cL}
+}
+
+\newglossaryentry{f}{
+    type=notations,
+    name={\ensuremath{f}},
+    description={Position of the forking block},
+    sort={f}
+}
+
+\newglossaryentry{m}{
+    type=notations,
+    name={\ensuremath{m}},
+    description={Position of the merging block},
+    sort={m}
+}
+
+\newglossaryentry{delta}{
+    type=notations,
+    name={\ensuremath{\delta}},
+    description={Fraction of blocks sampled with probability 1 at the end of the chain},
+    sort={delta}
+}
+
+\newglossaryentry{tsetup}{
+    type=notationsprobabilities,
+    name={\ensuremath{t_{\text{setup}}}},
+    description={Time taken by the adversary to setup the attack (in mined blocks)},
+    sort={tsetup}
+}
+
+\newglossaryentry{t}{
+    type=notationsprobabilities,
+    name={\ensuremath{t}},
+    description={Total time spent on the attack (in mined blocks)},
+    sort={t}
+}
+
+\newglossaryentry{beta}{
+    type=notationsprobabilities,
+    name={\ensuremath{\beta}},
+    description={Network parameter defining how often the adversary is defined as the miner of a block when both them and the honest miners sent a block simultaneousy to the remaining of the network},
+    sort={beta}
+}
+
+\newglossaryentry{Fbar}{
+    type=notationsprobabilities,
+    name={\ensuremath{\overline{F}}},
+    description={Maximum number of fake blocks that the adversary accepts in its fork. If they don't manage to have \(F\leqslant\overline{F}\), they redo the attack.},
+    sort={Fbar}
+}
+
+\newglossaryentry{F}{
+    type=notationsprobabilities,
+    name={\ensuremath{F}},
+    description={Number of fake blocks in the adversary's fork once they managed to setup the attack},
+    sort={F}
+}
+
+\newglossaryentry{psuccess}{
+    type=notationsprobabilities,
+    name={\ensuremath{p_{\text{success}}}},
+    description={Probability of success of the attack},
+    sort={psuccess}
+}
+
+\newglossaryentry{depth}{
+    type=notationsprobabilities,
+    name={\ensuremath{n - m}},
+    description={Depth of the merging block within the chain},
+    sort={nminusm}
+}
+
+\newglossaryentry{tbar}{
+    type=notationsprobabilities,
+    name={\ensuremath{\overline{t}}},
+    description={Maximum time that the adversary is willing to wait before the moment when they begin to setup the attack and the moment they send the proof of inclusion to the verifier},
+    sort={tbar}
+}

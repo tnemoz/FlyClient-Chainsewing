@@ -1,6 +1,31 @@
-      The probability that the \textit{chain-sewing} attack succeeds has been computed in the case where \FC\ is implemented as defined in \cite{\FCCite}. In particular, it uses the fact that \FC\ samples more frequently recent blocks than old ones to maximize the probability of success.
-      
-      The thing is, since the adversary can now merge its fork to the main chain from the MMR point of view, it is not true that this strategy is optimal anymore. The fork can be both very short and very old, which wasn't the case when \FC\ is deployed as a soft fork or as a hard fork.
-      
-      A solution to tackle this problem may be to use the Binary Search Approach, as described in \cite{\FCCite}. However, because of the fact that this approach is interactive, it may lead to additional delays. Plus, this approach is deterministic. Hence, the adversary knows in advance which blocks will be sampled. In spite of this, it may be still impossible for an adversary to perform a double-spent transaction, but this is to be proved formally.
+The probability that the \textit{chain-sewing} attack succeeds has been computed in the case where \FC\ is implemented as defined in \cite{\FCCite}. In particular, it uses the fact that \FC\ samples more frequently recent blocks than old ones to maximise the probability of success.
+
+The thing is, since the adversary can now merge its fork to the main chain from the MMR point of view, it is not true that this strategy is optimal anymore. The fork can be both very short and very old, which wasn't the case when \FC\ is deployed as a soft fork or as a hard fork.
+
+ In \autoref{section:attack}, we saw that the only way the client has to catch an adversary executing a \cs\ attack on \FC\ deployed on a velvet fork was to sample the merging block \(\Cindex{m}\) and the block just before, that is \(\Cindex{m-1}\).
+    
+Hence, our goal is to modify the \FC\ protocol so that not only it is still impossible for an adversary to have some fork accepted by the client, like in the first version of \FC\ described in \cite{\FCCite}, but it should also be impossible to run a \cs\ attack against it when deployed on a velvet fork.
+
+In this section, we aim to describe what changes to the protocol one may bring to \FC\ so that it is resistant to both these attacks. It is however important to note that this corrected version should only be used for deploying \FC\ on a velvet fork. Should it be deployed on a hard or a soft fork, the original implementation of \FC\ described in \cite{\FCCite} has more interesting properties, as discussed in \autoref{section:comparison}.
+
+\section{The Binary Search as a substitute for \FC's optimal random sampling}
+   The Binary Search strategy is conceptually simple. According to the protocol described in \cite{\FCCite}, since by assumption at least one of the provers is honest, the client can compare their answers. For a given block, both the adversary and the honest prover will provide a MMR proof of inclusion for this block consistent with the MMR root they sent. The goal of the client is then to derive whether this block lies before or after the forking block according to the proofs they receive.
+   
+   This solution, originally proposed in the original \FC\ paper \cite{\FCCite}, does not work anymore on a velvet fork. Indeed, it is possible for the adversary to set up a situation such that there is no difference between sampling a block before the forking block and after the merging one. If they decide to include in their MMR only blocks of their own, by declaring as legacy every other block, then in any case, both provers will consider the other one's blocks as legacy and behave accordingly. However, doing so means that the adversary would have a very short MMR regarding to the total blockchain length, which may seem suspicious to the client. It may be however quite difficult to quantify. Furthermore, this approach has the disadvantage of being interactive, resulting in higher delays in the transaction inclusion verification, as stated in \cite{\FCCite}.
+
+\section{Providing \FC\ with an additional check}
+    Two things are to be taken into account: not only do we want to prevent the original attack (having a fork accepted) to be possible, but we also want the \cs\ attack not to be possible. Solving the former is actually easy: we can simply use the original \FC\ protocol to prevent it, since it has been designed for this purpose. If we manage to find some additional checks that the client can perform to avoid the \cs\ attack without asking the provers for much more data, then we are fine.
+    
+    As a recall, the very goal of \FC\ is to prove the inclusion of a transaction within a chain. In our case, this sums up to prove the inclusion of the block containing this transaction within the chain. Since at least one of the provers is honest, two cases are non-trivial:
+    
+    \begin{itemize}
+        \item the adversary wants to perform a double-spent transaction and wants to have a block in a fork accepted by the client;
+        \item the adversary wants the client to think that this block is not included in the blockchain while it actually is.
+    \end{itemize}
+   
+    Let us imagine that, along with the length of their chain and their MMR root, both provers also provide the client with the position of the block that contains the transaction within the chain. One of them will give a position, the other one will answer that they think the block is not included in the chain. The client would then ask for the \(k\) next blocks in the MMR tree of the prover that answered that the block was included in the chain, where \(k\) is some security parameter. If the block that contains the transaction to be verified is at an odd position, the client also asks for the block that comes precedes in the MMR. It is easy for the client to check that the prover actually provides them with the blocks they asked for using the MMR proofs. The greater \(k\), the more fake blocks the adversary has to include at the end of its fork, and thus the more likely it will get caught by the first step of the process. A honest prover however will have no difficulty in providing the blocks the client asked for. Hence, this solution solves both the original problem tackled in the original \FC\ paper and the \cs\ attack.
+
+\section{Comparison between the original \FC\ implementation and the corrected version}
+    \label{section:comparison}
+\section{A robust implementation of \FC\ deployed as a velvet fork}
 

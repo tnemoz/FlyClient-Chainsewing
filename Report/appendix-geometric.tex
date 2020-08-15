@@ -1,0 +1,24 @@
+Let be \(k\in\mathbf{N}\), \(n\in\mathbf{N}^*\) and \(p\in[0\,;\,1]\). We are interested in computing the following:
+  \[\P{\sum_{i=1}^nX_i=k}\]
+  where all the \(X_i\) are independent random variables following a geometric distribution with parameter \(p\) and support \(\mathbf{N}\). We prove by induction the following:
+  \[\forall n\in\mathbf{N}^*,\exists P_n\in\mathbf{R}_n[X],\P{\sum_{i=1}^nX_i=k}=p^n\,(1-p)^k\,P_n(k).\]
+  \begin{proof}
+    Let be \(n=1\). Then:
+    \[\P{\sum_{i=1}^nX_i=k}=\P{X_1=k}=p^n\,(1-p)^k.\]
+    Hence, the proposition is true for \(n=1\), since we can take \(P_1=1\in\mathbf{R}_0[X]\). Let us assume that the proposition is true for some \(n\in\mathbf{N}^*\). Then:
+    \begin{align*}
+        \P{\sum_{i=1}^{n+1}X_i=k} &= \sum_{j=0}^k\P{\left(\sum_{i=1}^nX_i=j\right)\cap\left(X_{n+1}=k-j\right)}\\
+        &= \sum_{j=0}^k\P{\sum_{i=1}^nX_i=j}\,\P{X_{n+1}=k-j}\\
+        &= \sum_{j=0}^kp^n\,(1-p)^j\,P_n(j)\,p\,(1-p)^{k-j}\\
+        &= p^{n+1}\,(1-p)^k\,\sum_{j=0}^kP_n(j)
+    \end{align*}
+    We now need to prove that \(\sum\limits_{j=0}^kP_n(j)\) is polynomial in \(k\) with degree \(n+1\). Let us denote \(a_{i, n}\) the coefficients of \(P_n\), since \(P_n\in\mathbf{R}_n[X]\). We have:
+    \begin{align*}
+        \sum_{j=0}^kP_n(j) &= \sum_{j=0}^k\sum_{i=0}^na_{i,n}j^i\\
+        &= \sum_{i=0}^na_{i,n}\,\sum_{j=0}^kj^i\\
+        &= a_{0, n}\,\sum_{j=0}^kj^0 + \sum_{i=1}^na_{i,n}\,\sum_{j=0}^kj^i\\
+        &= a_{0, n}\,(k + 1) + \sum_{i=1}^na_{i,n}\,\sum_{j=1}^kj^i
+    \end{align*}
+    Using Faulhaber's formula, we have:
+    \[\sum_{j=0}^kP_n(j) = a_{0, n}\,(k + 1) + \sum_{i=1}^na_{i,n}\,\left(\frac{k^{i+1}}{i+1}+\frac12\,k^i+\sum_{j=2}^i\frac{B_j}{j!}\,\frac{i!}{(i-j+1)!}\,k^{i-j+1}\right)\]
+  \end{proof}

@@ -1,14 +1,14 @@
-    \section{\textit{Chain-sewing} attacks}
-      A personal correspondence with Andrianna Polydouri and Dionysis Zindros showed that the Superblock protocol is prone to be attacked with what is called a \textit{chain-sewing} attack. Such an attack is applicable when the new protocol is deployed as a velvet fork.
+    \section{\CS\ attacks}
+      A personal correspondence with Andrianna Polydouri and Dionysis Zindros showed that the Superblock protocol is prone to be attacked with what is called a \cs\ attack. Such an attack is applicable when the new protocol is deployed as a velvet fork.
       
       The idea is that the adversary can put arbitrary data in the interlink field. Hence, they can put interlink data that is invalid for honest miners but that may be considered valid by the verifier. Such an attack on \FC\ is described in \autoref{section:attack}.
     \section{Notations}
       \label{section:notations}
-      We may begin with describing the notations that we will use throughout our analysis. We consider a blockchain \(\mathsf{C}\) consisting in \(n\) blocks. Amongst all nodes running this chain, a portion \(\mu\) of them are malicious and work for a single adversary. To put things differently, we assume the existence of an adversary such that the ratio between their computational power and the total computational power of the network is \(\mu\). We use a Python-like indexing of the blockchain \(\mathsf{C}\). That is, the genesis block is denoted \(\mathsf{C[}0\mathsf{]}\), the last block \(\mathsf{C[}-1\mathsf{]}\) or \(\mathsf{C[}n-1\mathsf{]}\) and we can represent the portion of the chain from block  \(i\) (inclusive) to block \(j\) (exclusive) with  \(\mathsf{C[}i\mathsf{:}j\mathsf{]}\). We use the same notations for denoting blocks in the adversary's fork, at the exception that we append \('\) to their name, like \(\mathsf{C[}i\mathsf{]}'\) for instance.    
+      We may begin with describing the notations that we will use throughout our analysis. We consider a blockchain \gls{C} consisting in \gls{n} blocks. Amongst all nodes running this chain, a portion \gls{mu} of them are malicious and work for a single adversary. To put things differently, we assume the existence of an adversary such that the ratio between their computational power and the total computational power of the network is \gls{mu}. We use a Python-like indexing of the blockchain \gls{C}. That is, the genesis block is denoted \(\Cindex{0}\), the last block \(\Cindex{-1}\) or \(\Cindex{n-1}\) and we can represent the portion of the chain from block  \(i\) (inclusive) to block \(j\) (exclusive) with  \(\Crange{i}{j}\). We use the same notations for denoting blocks in the adversary's fork, at the exception that we append \('\) to their name, like \(\Cindex{i}'\) for instance.    
 
-      We work under the  \((c,L)\)-assumption, as described in \cite{\FCCite}. Fundamentally, it bounds the adversary computational power: if the adversary owns a fork of length \(L\) such that their own chain is as long as the main chain, it is impossible that a larger fraction than $c$ of these blocks are valid with respect to the protocol rules. As a recall, \FC\ will always sample the last \(\delta\) fraction of the blockchain's blocks. While we will use \(\delta\) in our analysis, it is important to keep in mind that \(\delta\) can be directly derived from the \((c,L)\)-adversary assumption.    
+      We work under the  \gls{cL}-assumption, as described in \cite{\FCCite}. Fundamentally, it bounds the adversary computational power: if the adversary owns a fork of length \(L\) such that their own chain is as long as the main chain, it is impossible that a larger fraction than \(c\) of these blocks are valid with respect to the protocol rules. As a recall, \FC\ will always sample the last \gls{delta} fraction of the blockchain's blocks. While we will use \gls{delta} in our analysis, it is important to keep in mind that \gls{delta} can be directly derived from the \gls{cL}-adversary assumption.    
 
-      Finally, two blocks are special regarding the \textit{chain-sewing} attack: what we call in the following the \emph{forking block}  \(f\) and the \emph{merging block} \(m\). Both these blocks are described in the next section. \autoref{table:notations} summarizes the notations used throughout the analysis.
+      Finally, two blocks are special regarding the \cs\ attack: what we call in the following the \emph{forking block} \gls{f} and the \emph{merging block} \gls{m}. Both these blocks are described in the next section.
 
       \begin{table}[ht]
         \centering
@@ -40,8 +40,10 @@
         \caption{Notations used throughout the analysis}
         \label{table:notations}
       \end{table} 
+    
+    \printglossary[type=notationschainsewing]
       
-    \section{Principle of a \textit{chain-sewing} attacks on \FC}
+    \section{Principle of a \cs\ attacks on \FC}
       \label{section:attack}
       Let us place ourselves within the Bitcoin backbone protocol with variable difficulty. Let us assume that the \FC\ protocol was implemented on a velvet fork in this context. In particular, this means that:
 
@@ -93,7 +95,7 @@
             \path[draw, decorate] (cj1) -- (k);
             \path[draw,decorate] (k) -- (N);
           \end{tikzpicture}
-          \caption{A chainsewing attack attempt on \FC}
+          \caption{A \cs\ attack attempt on \FC}
           \label{figure:chainsewingattempt}
         \end{figure}
       
@@ -145,7 +147,7 @@
             \path[draw, decorate] (c2) -- (k);
             \path[draw,decorate] (k) -- (N);
           \end{tikzpicture}
-          \caption{A chainsewing attack attempt on \FC\ with a fork of length 1}
+          \caption{A \cs\ attack attempt on \FC\ with a fork of length 1}
           \label{figure:chainsewingattack}
         \end{figure}
         
@@ -197,7 +199,218 @@
         
       The adversary significantly increases its probablity of success by doing so, but this is also more difficult to setup. Indeed, several cases of sampling are possible. If neither \(\Cindex{m}\) nor \(\Cindex{f+2}'\) are sampled, there is no problem and the attack succeeds. If \(\Cindex{f+2}'\) is sampled without \(\Cindex{m}\), the attack also succeeds, since \(\Cindex{f+2}'\) is valid both from the previous block reference point of view and from the MMR root point of view. If both \(\Cindex{m}\) and \(\Cindex{f+2}'\) are sampled, the attack fails, since the inconsistency between the previous block reference of \(\Cindex{m}\) and the hash of \(\Cindex{f+2}'\) would then be revealed. Finally, if \(\Cindex{m}\) is the only one to be sampled, then it depends on whether \(m\) is odd. If \(m\) is even, then \(\Cindex{m}\) and \(\Cindex{f+2}'\) will share the same parent node in the MMR the adversary would have built. Hence, the hash of \(\Cindex{f+2}'\) would have to be provided in the MMR proof of the inclusion of \(\Cindex{m}\) within the chain. If \(m\) is odd however, they don't share the same parent node. Hence, the hash of \(\Cindex{f+2}'\) won't appear in the proof and the inconsistency wouldn't be detected.  
 
-      Getting back to the \textit{chain-sewing attack}, the reason why this works on a velvet fork only is that an adversary is allowed to put some fake MMR root in a block header of the main chain. In particular, the following was outlined in the \FC\ paper: \enquote{once a malicious prover forks off from the honest chain, it cannot include any of the later honest blocks in its chain because the MMR root in those blocks would not match the chain} \cite{\FCCite}.
+      Getting back to the \cs\ attack, the reason why this works on a velvet fork only is that an adversary is allowed to put some fake MMR root in a block header of the main chain. In particular, the following was outlined in the \FC\ paper: \enquote{once a malicious prover forks off from the honest chain, it cannot include any of the later honest blocks in its chain because the MMR root in those blocks would not match the chain} \cite{\FCCite}.
       
       In particular, the adversary is not forced to create a fork as long as the main chain, eventually creating fake blocks. We may note that this attack works as long as the fork created by the adversary is as long as the corresponding chain portion. The adversary can also include fake blocks in its fork to have a longer fork while sticking to this constraint. Even though this increases the probability of getting caught as every fake block sampled results in a failed proof, waiting long enough once the fork has been merged is enough for hoping that these blocks won't be sampled. Hence, the attack also works with longer forks.
 
+\section{Possible setups for a \cs\ attack}
+    It is important to note that although the \cs\ attack depicted as above fools the client, it is actually not that grave. Indeed, for the adversary to have some blocks accepted, it is necessary that they wait a long time for the merging block to be deeper in the chain so that it is not sampled. Hence, it is necessary that the adversary plans long in advance their attack.
+    
+    However, a much more powerful attack is possible using a very similar setup: it is possible for the adversary to fail the SPV assumption, that is to convince the client into trusting that an invalid block is included in the main chain. Indeed, let us consider the setup depicted in \autoref{figure:withfake}.
+    
+    \begin{figure}[ht]
+        \centering
+        \begin{tikzpicture}[decoration = {snake}]
+          \node[block] (G) {};
+          \node[below of=G] {\(\Cindex{0}\) };
+          \node[block, right=of G] (c) {};
+          \node[below of=c] {\(\Cindex{f}\) };
+          \node[block, above right=of c,fill=red!20] (cprime1) {};
+          \node[below of=cprime1] {\(\Cindex{f+1}'\) };
+          \node[block, below right=of c] (c1) {};
+          \node[block, right=of cprime1, fill=black] (cprime2) {};
+          \node[below of=cprime2] {\(\Cindex{f+2}'\) };
+          \node[below of=c1] {\(\Cindex{f+1}\) };
+          \node[block, right=of c1] (c2) {};
+          \node[below of=c2] {\(\Cindex{f+2}\) };
+          \node[block, above right=of c2, fill=black] (c3) {};
+          \node[below of=c3] {\(\Cindex{m}\) };
+          \node[block, right=of c3] (k) {};
+          \node[below of=k] {\(\Cindex{n\,(1-\delta)}\) };
+          \node[block, right=of k] (N) {};
+          \node[below of=N] {\(\Cindex{-1}\) };
+          
+          \path[draw, decorate] (G) -- (c);
+          \path[draw] (cprime1.west) -- (c.north);
+          \path[draw] (c1.west) -- (c.south);
+          \path[draw] (cprime1) -- (cprime2);
+          \path[draw] (c1) -- (c2);
+          \path[draw, dashed, ->] (c3.north) -- (cprime2.east);
+          \path[draw] (c3.south) -- (c2.east);
+          \path[draw, decorate] (c3) -- (k);
+          \path[draw,decorate] (k) -- (N);
+        \end{tikzpicture}
+        \caption{Creating coins using the \cs\ attack}
+        \label{figure:withfake}
+      \end{figure}
+
+    The setup looks like the setup depicted in \autoref{figure:chainsewingdouble}, but actually is more similar to the one depicted in \autoref{figure:chainsewingattack}. Indeed, the idea is exactly the same: the adversary wants some block, here \(\Cindex{f+2}'\) accepted by the client and merges their fork using \(\Cindex{m}\). However, they also included a fake block at position \(f+1\) in their fork. The point of doing this is creating fake UTXO. Indeed, since this block is not verified by the honest nodes, the adversary can create fake transaction in it without owning the private key of the concerned nodes. It is then possible to use these fake transaction as UTXO to perform another, legitimately signed, transaction in \(\Cindex{f+2}'\).
+    
+    Of course, the attack now fails if either \(\Cindex{f+1}'\) or \(\Cindex{m}\) are sampled by the client. But it is also possible to perform a similar setup to \autoref{figure:chainsewingdouble}, by adding a new honest block after \(\Cindex{f+2}'\). This is shown in \autoref{figure:withfakedouble}.
+
+    \begin{figure}[ht]
+        \centering
+        \begin{tikzpicture}[decoration = {snake}]
+          \node[block] (G) {};
+          \node[below of=G] {\(\Cindex{0}\) };
+          \node[block, right=of G] (c) {};
+          \node[below of=c] {\(\Cindex{f}\) };
+          \node[block, above right=of c,fill=red!20] (cprime1) {};
+          \node[below of=cprime1] {\(\Cindex{f+1}'\) };
+          \node[block, below right=of c] (c1) {};
+          \node[block, right=of cprime1, fill=black] (cprime2) {};
+          \node[below of=cprime2] {\(\Cindex{f+2}'\) };
+          \node[block, right=of cprime2, fill=black] (cprime3) {};
+          \node[below of=cprime3] {\(\Cindex{f+3}'\) };
+          \node[below of=c1] {\(\Cindex{f+1}\) };
+          \node[block, right=of c1] (c2) {};
+          \node[below of=c2] {\(\Cindex{f+2}\) };
+          \node[block, right=of c2] (c3) {};
+          \node[below of=c3] {\(\Cindex{f+3}\) };
+          \node[block, above right=of c3, fill=black] (cm) {};
+          \node[below of=cm] {\(\Cindex{m}\) };
+          \node[block, right=of cm] (k) {};
+          \node[below of=k] {\(\Cindex{n\,(1-\delta)}\) };
+          \node[block, right=of k] (N) {};
+          \node[below of=N] {\(\Cindex{-1}\) };
+          
+          \path[draw, decorate] (G) -- (c);
+          \path[draw] (cprime1.west) -- (c.north);
+          \path[draw] (c1.west) -- (c.south);
+          \path[draw] (cprime1) -- (cprime2);
+          \path[draw] (cprime2) -- (cprime3);
+          \path[draw] (c1) -- (c2);
+          \path[draw] (c2) -- (c3);
+          \path[draw, dashed, ->] (cm.north) -- (cprime3.east);
+          \path[draw] (cm.south) -- (c3.east);
+          \path[draw, decorate] (cm) -- (k);
+          \path[draw,decorate] (k) -- (N);
+        \end{tikzpicture}
+        \caption{Creating coins using the \cs\ attack while trying to avoid the merging block sampling problem}
+        \label{figure:withfakedouble}
+      \end{figure}
+      
+      Finally, it is also possible for the adversary to create coins in a first time, and then to perform a second \cs\ attack some time after, as depicted in \autoref{figure:withfakewait}.
+      
+    \begin{figure}[ht]
+        \centering
+          \begin{tikzpicture}[decoration = {snake}]
+            \node[block] (G) {};
+            \node[below of=G] {\(\Cindex{0}\) };
+            \node[block, right=of G] (c) {};
+            \node[below of=c] {\(\Cindex{f}\) };
+            \node[block, above right=of c, fill=red!20] (cprime1) {};
+            \node[below of=cprime1] {\(\Cindex{f+1}'\) };
+            \node[block, below right=of c] (c1) {};
+            \node[below of=c1] {\( \Cindex{f+1}\) };
+            \node[block, above right=of c1, fill=black] (c2) {};
+            \node[below of=c2] {\(\Cindex{m}\) };
+            \node[block, right=of c2] (k) {};
+            \node[below of=k] {\(\Cindex{f'}\) };
+            \node[block, above right=of k, fill=black] (kprime1) {};
+            \node[below of=kprime1] {\(\Cindex{f'+1}'\) };
+            \node[block, below right=of k] (k1) {};
+            \node[below of=k1] {\(\Cindex{f'+1}\) };
+            \node[block, above right=of k1, fill=black] (cmprime) {};
+            \node[below of=cmprime] {\(\Cindex{m'}\) };
+            \node[block, right=of cmprime] (1mdelta) {};
+            \node[below of=1mdelta] {\(\Cindex{n\,(1-\delta)}\) };
+            \node[block, right=of 1mdelta] (N) {};
+            \node[below of=N] {\(\Cindex{-1}\) };
+    
+            
+            \path[draw, decorate] (G) -- (c);
+            \path[draw] (cprime1.west) -- (c.north);
+            \path[draw] (c1.west) -- (c.south);
+            \path[draw, dashed, ->] (c2.north) -- (cprime1.east);
+            \path[draw] (c2.south) -- (c1.east);
+            \path[draw, decorate] (c2) -- (k);
+            \path[draw] (kprime1.west) -- (k.north);
+            \path[draw] (k1.west) -- (k.south);
+            \path[draw, dashed, ->] (cmprime.north) -- (kprime1.east);
+            \path[draw] (cmprime.south) -- (k1.east);
+            \path[draw, decorate] (cmprime) -- (1mdelta);
+            \path[draw, decorate] (1mdelta) -- (N);
+          \end{tikzpicture}
+          \caption{A double \cs\ attack attempt on \FC}
+          \label{figure:withfakewait}
+    \end{figure}
+        
+        In this attack, the adversary wants \(\Cindex{f'+1}\) accepted by the client, knowing that it uses fake \glspl{utxo} created in \(\Cindex{f+1}\). Note that it is also possible for the adversary to include a honest block between \(\Cindex{f+1}'\) and \(\Cindex{m}\) or between \(\Cindex{f'+1}'\) and \(\Cindex{m'}\) to try to prevent the merging block sampling problem. If the attack succeed, then the adversary was able to convince the client that an invalid block according to the old protocol rules is included in the blockchain. Not only it allows the client to make the client believe that they have performed some transaction using their coins, but also that they have performed some transaction using more coins that they actually own. It may allow an adversary to create coins in a first place and then to transfer them to another account, so that this new account can spend them whenever they want. This is not possible in any other case: even if an adversary wants to perform a more classical double-spent transaction, it is not possible for them to create coins they can use to perform this transaction.
+
+\section{The slightly improved, utopian \FC\ protocol}
+    If \FC\ were to be implemented as described in \cite{\FCCite}, the \cs\ attack would be undetectable. Indeed, there is no mention to checking the consistency between the previous block header hash reference and the hash provided by the prover in the MMR proof. Since this is very easy to do, we will assume in the following that this check is performed.
+    
+    Plus, the original \FC\ paper uses the Fiat--Shamir heuristic to use the hash of the last block header as a verifiable source of randomness. This induces a major problem: either the protocol must wait for a block to be mined on top of the last block of the chain or it means that that the prover does know which blocks will be sampled before starting the protocol. This is not that grave concerning the original \FC\ protocol, since the probability of success of the attack is very low, an adversary would have to wait a unreasonable time for the attack to succeed. However, concerning the \cs\ attack, the probability of success is way higher, as computed in \autoref{section:firstsetup}. Hence, the adversary could setup the attack and then wait for a block that will sample neither the merging block nor the fake blocks. Hence, we will assume that both the protocol induces a verifiable source of randomness, so that the adversary does not know which blocks would be sampled before starting the protocol, even though it probably induces in reality an interactive protocol.
+    
+    Furthermore, we will assume that the penalty that the adversary gets if they get caught is high concerning this transaction. For instance, if the adversary fails to prove the inclusion of a given transaction, one can imagine that the client won't allow them to try to prove the inclusion anymore. This incentives the adversary to try to perform the attack only when they have a probability of success, which is hard to obtain.
+    
+    Finally, we will assume that, for efficiency's sake, the client only asks for block header, potentially along with a Merkle proof of inclusion of a transaction. As a consequence however, the adversary does not have to place \(\Cindex{f+1}'\) in their fork to create the \glspl{utxo} they want to use. Indeed, it is possible in the Bitcoin protocol to use an \gls{utxo} created in the same block. Since the \FC\ protocol does not sample the whole block but only the block header, the client has no way to find out that this \gls{utxo} is actually a fake one. Hence, the situation depicted in \autoref{figure:withfake} would, in this case, be represented as shown in \autoref{figure:withfakecreating}, while the one depicted in \autoref{figure:withfakedouble} would be represented as shown on \autoref{figure:withfakedoublecreating}.
+    
+    \begin{figure}[ht]
+        \centering
+          \begin{tikzpicture}[decoration = {snake}]
+            \node[block] (G) {};
+            \node[below of=G] {\(\Cindex{0}\) };
+            \node[block, right=of G] (c) {};
+            \node[below of=c] {\(\Cindex{f}\) };
+            \node[block, above right=of c, fill=red!20] (cprime1) {};
+            \node[below of=cprime1] {\(\Cindex{f+1}'\) };
+            \node[block, below right=of c] (c1) {};
+            \node[below of=c1] {\( \Cindex{f+1}\) };
+            \node[block, above right=of c1, fill=black] (c2) {};
+            \node[below of=c2] {\(\Cindex{m}\) };
+            \node[block, right=of c2] (k) {};
+            \node[below of=k] {\(\Cindex{n\,(1-\delta)}\) };
+            \node[block, right=of k] (N) {};
+            \node[below of=N] {\(\Cindex{-1}\) };
+            
+            \path[draw, decorate] (G) -- (c);
+            \path[draw] (cprime1.west) -- (c.north);
+            \path[draw] (c1.west) -- (c.south);
+            \path[draw, dashed, ->] (c2.north) -- (cprime1.east);
+            \path[draw] (c2.south) -- (c1.east);
+            \path[draw, decorate] (c2) -- (k);
+            \path[draw,decorate] (k) -- (N);
+          \end{tikzpicture}
+          \caption{A \cs\ attack attempt on \FC\ that creates coins with a fork of length 1}
+          \label{figure:withfakecreating}
+        \end{figure}
+        
+        \begin{figure}[ht]
+        \centering
+        \begin{tikzpicture}[decoration = {snake}]
+          \node[block] (G) {};
+          \node[below of=G] {\(\Cindex{0}\) };
+          \node[block, right=of G] (c) {};
+          \node[below of=c] {\(\Cindex{f}\) };
+          \node[block, above right=of c,fill=red!20] (cprime1) {};
+          \node[below of=cprime1] {\(\Cindex{f+1}'\) };
+          \node[block, below right=of c] (c1) {};
+          \node[block, right=of cprime1, fill=black] (cprime2) {};
+          \node[below of=cprime2] {\(\Cindex{f+2}'\) };
+          \node[below of=c1] {\(\Cindex{f+1}\) };
+          \node[block, right=of c1] (c2) {};
+          \node[below of=c2] {\(\Cindex{f+2}\) };
+          \node[block, above right=of c2, fill=black] (c3) {};
+          \node[below of=c3] {\(\Cindex{m}\) };
+          \node[block, right=of c3] (k) {};
+          \node[below of=k] {\(\Cindex{n\,(1-\delta)}\) };
+          \node[block, right=of k] (N) {};
+          \node[below of=N] {\(\Cindex{-1}\) };
+          
+          \path[draw, decorate] (G) -- (c);
+          \path[draw] (cprime1.west) -- (c.north);
+          \path[draw] (c1.west) -- (c.south);
+          \path[draw] (cprime1) -- (cprime2);
+          \path[draw] (c1) -- (c2);
+          \path[draw, dashed, ->] (c3.north) -- (cprime2.east);
+          \path[draw] (c3.south) -- (c2.east);
+          \path[draw, decorate] (c3) -- (k);
+          \path[draw,decorate] (k) -- (N);
+        \end{tikzpicture}
+        \caption{Preventing the merging block sampling problem while creating coins}
+        \label{figure:withfakedoublecreating}
+      \end{figure}
+        
+    In the next chapter, we will aim to compute the probability for these attacks succeeding.

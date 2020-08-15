@@ -1,172 +1,415 @@
-      The adversary has two main strategies: creating a fork of length 1 without any fake blocks, as depicted in \autoref{figure:chainsewingattack}, or creating a longer fork, potentially with including fake blocks within it, as depicted in \autoref{figure:chainsewingdouble}. Both these strategies requires the adversary to mine the merging block. Hence, this will be the first part of our analysis. The notations that will be used will be those of \autoref{table:notations}.
-      
-      \section{Probability for the attacker to mine the merging block}
-        \label{section:miningprob}
-        If the adversary manages to mine the forking block before a honest miner mines the corresponding honest block, then the adversary has a probability \(\mu\) of mining the forking block, since a ratio \(\mu\) of the blocks are mined by the adversary. For a fork of length \(F>2\), the adversary has in average to place \((1-\mu)\,F\) fake blocks in it. Following the strategy of giving up on a block (hence placing a fake one) as soon as the corresponding honest block is mined, the probability of creating a fork of an arbitrary length is \(\mu\), since it is the probability of mining the merging block once the fork is of desired length.
-        
-        In order not to have lost computational power, the adversary can, if they don't mine the merging block, try to add a fake block to the fork and try again to mine the merging block. This doesn't impact the probability of success of this part, but impact the one of getting caught. In average, following this strategy, the adversary will add \(\frac{1-\mu}{\mu}\) fake blocks to the fork.
+We will focus our analysis on the attack that is the most interesting for the adversary, that is creating coins in an invalid block and then transferring them to another address. The adversary has four strategy choices: they can use either the setup depicted in \autoref{figure:withfakecreating} or the one depicted in \autoref{figure:withfakedoublecreating}, and they can either add fake blocks until they manage to be in the setup they chose or retry every time until the have an acceptable number of fake blocks in their fork. We will capture the latter by adding a new parameter \gls{Fbar} which indicates the number of fake blocks in the adversary's fork above which they retry the attack. \gls{Fbar} directly impacts both the probability of success of the attack and the time \gls{tsetup} taken to setup the attack.
 
-      \section{Probability for a block to be sampled under a constant difficulty}
-        Let us assume that:
-        \begin{itemize}
-          \item the chain has a total of \(n\) blocks;
-          \item the merging block is at position \(m\) in the chain.
-        \end{itemize}
-        
-        The probability that a block at position \(x\geqslant n\,(1-\delta)\) is sampled is 1, while the probability that a block at position \(x< n\,(1-\delta)\) is:
-        
-        \begin{align*}
-          p_x &= \frac{1}{\ln(\delta)}\int_{\frac{x}{n}}^{\frac{x+1}{n}}\frac{\mathrm{d}t}{t-1}\\
-              &= \frac{\ln\left(\left|\frac{x+1}{n}-1\right|\right)-\ln\left(\left|\frac{x}{n}-1\right|\right)}{\ln(\delta)}\\
-              &= \frac{\ln\left(1-\frac{1}{n-x}\right)}{\ln(\delta)}.
-        \end{align*}
+In the first section, we will introduce more formally the parameters used for our analysis. We will then compute the probability for a block to be mined assuming a \FC\ protocol with constant difficulty in \autoref{section:probasampled}. We then evaluate which strategies the adversary has when trying to mine a block in \autoref{section:miningstrategies} and determine the most optimal one. Knowing this strategy, we compute the time taken and the number of fake blocks necessary to mine a block in \autoref{section:blockmined}. Using these, we evaluate in \autoref{section:firstsetup} the first possible setup, that the one depicted in \autoref{figure:withfakecreating}. We will continue in \autoref{section:secondsetup} by evaluating the second setup, depicted in \autoref{figure:withfakedoublecreating}, and will end our analysis by evaluating the error made by considering a constant difficulty protocol in \autoref{section:variabledifficulty}.
 
-        Using these two probabilities, we are now able to compute the probability of success of the attack following the two strategies mentioned above.
+\section{Parameters}
 
-        \section{Probability for the attack to succeed using a fork of length 1}
-          In order for this attack to succeed, two things are necessary:
+The very first parameter we have to take into account is the adversary's computational power \gls{mu}. The second parameter the adversary has no control on is the security parameter \gls{delta}. \Gls{delta} controls how succinct the \FC\ proof will be: the lower \gls{delta}, the more efficient the proof is, but the less secure the protocol is.
 
-          \begin{itemize}
-            \item the adversary has to mine the merging block while already having mined the forking block;
-            \item the merging block should not be sampled by the client.
-          \end{itemize}
+Concerning what the adversary can choose, there is only two parameters, one of which is the threshold \gls{Fbar} of fake blocks. The greater \gls{Fbar}, the faster the adversary is able to setup the attack, but the more likely they are to be caught by the client. Indeed, putting \(\gls{Fbar}=0\) implies that the adversary retries the attack until they manage to place 0 fake blocks in their fork, hence ensuring the largest probability of success that is possible. Putting \(\gls{Fbar}=+\infty\) on the other side ensures that the adversary minimises their cost: whatever the number of fake blocks they have to place within their fork, they will not retry the attack. The adversary also chooses \(\gls{n}-\gls{m}\), which is the depth of the merging block. This directly impacts both the \gls{Fbar} necessary to setup the attack and its probability of success \gls{psuccess}, since \FC\ is more likely to sample recent blocks than old ones.
 
-          Both these probabilities are easy to compute. Indeed, let us consider that at position \(f\), the adversary tries to mine the forking block. if they manage to mine \(\Cindex{f+1}'\) before they heard about \(\Cindex{f+1}\), then they wait for \(\Cindex{f+1}\) and, once they received it, try to mine the merging block \(\Cindex{f+2}\). It is actually possible that the adversary manages to mine \(\Cindex{f+2}\) even if they mined \(\Cindex{f+1}'\) after they heard about \(\Cindex{f+1}\), but since it lowers their probability to mine the merging block, their best bet is to give up on trying to mine \(\Cindex{f+1}'\) and to try again on \(\Cindex{f+2}'\).
+While mining on their fork rather than on the main chain, the adversary loses coins, since they do not receive the coins they would have obtained by mining blocks on the main chain. Plus, the adversary still spends computational power trying to mine on their fork. Adding those two defines a cost per block for the adversary: the longer they have to mine on their fork, the more coins they lose. We denote this by a cost \gls{Cost} that the adversary wants to minimise. On the other hand, the adversary has a limited maximum gain \gls{G} when running the attack. Indeed, it is very likely that a client won't accept a transaction involving too much coins. Hence, a simple but efficient defence against the \cs\ attack is to ensure that the minimum cost \gls{C} that an adversary has to pay to run the attack is higher than the maximum adversarial gain \gls{G}.
 
-          Hence, the probability that the adversary manages to do this is at least \(\mu^2\). Combining this with the probability that the merging block is not sampled, the probability of success of the attack is at least:
+Finally, two measures of time has to be differentiated: \gls{tsetup} and \gls{t}. The former is the number of blocks during which the adversary would be mining on their fork rather than on the main chain, which is directly related to their cost \gls{C}, while the latter is the number of blocks mined on the main chain between the moment where the adversary began to mine on their fork and the moment the client launches the protocol. Hence, a simple relation between these parameters can be found:
 
-          \[
-                  \mu^2\,\left[1-\frac{\ln\left(1-\frac{1}{n-m}\right)}{\ln(\delta)}\right]
-          .\] 
+\[\gls{t}=\gls{tsetup} + \gls{n} - \gls{m}.\]
 
-          Note however that this is a two-steps process: firstly, the adversary mines the blocks, then they try to convince the client about the inclusion of \(\Cindex{f+1}'\) within the chain. Hence, the probability that the adversary succeeds once they have mined both the forking and the merging block is now simply:
+The goal of the next sections is to compute the time \gls{tsetup} taken to setup a given strategy and the probability of success \gls{psuccess} of this strategy as functions of \gls{Fbar}, \gls{mu}, \(\gls{n}-\gls{m}\) and \gls{delta}.
 
-         \[        
-                  1-\frac{\ln\left(1-\frac{1}{n-m}\right)}{\ln(\delta)}
-         .\]
+\section{Probability for some blocks to be sampled under a constant difficulty}
+\label{section:probasampled}
+The probability that a block is sampled is described in \cite{\FCCite}. The probability that a block at position \(x\geqslant\gls{n}\,(1-\gls{delta})\) is sampled is 1, while the probability that a block at position \(x<\gls{n}\,(1-\gls{delta})\) is sampled is given by:
 
-        \section{Probability for the attack to succeed using a longer fork}
-        The previous attack assumed that no fake block was placed in the fork, since the forking block \(\Cindex{f+1}'\) and the merging block \(\Cindex{m}\) have to be honest regarding to the old protocol rules. Hence, this section describes more generally how an adversary can benefit from placing fake blocks after \(\Cindex{f+1}'\) and before \(\Cindex{m}\).
+\begin{align*}
+  p_x &= \frac{1}{\ln(\gls{delta})}\int_{\frac{x}{\gls{n}}}^{\frac{x+1}{\gls{n}}}\frac{\mathrm{d}t}{t-1}\\
+      &= \frac{\ln\left(\left|\frac{x+1}{\gls{n}}-1\right|\right)-\ln\left(\left|\frac{x}{\gls{n}}-1\right|\right)}{\ln(\gls{delta})}\\
+      &= \frac{\ln\left(1-\frac{1}{\gls{n}-x}\right)}{\ln(\gls{delta})}.
+\end{align*}
 
-        When using a longer fork, the adversary has more strategies at their disposal. While they still have to mine both the merging and the forking blocks, they can choose concerning \(\Cindex{f+2}'\):
+More generally, the probability that at least one block in the range \(\Crange{a}{b}\) is sampled is given by:
 
-        \begin{itemize}
-          \item to try to mine it, so that they reduce the probability of getting caught;
-          \item to place a fake block, so that they don't need to race against the main chain;
-          \item to stop after it has been mined, honestly or not, or to continue.
-        \end{itemize}
+\begin{align*}
+    p_{a,b} &= \frac{1}{\ln(\gls{delta})}\,\int^{\frac{b}{\gls{n}}}_{\frac{a}{\gls{n}}}\frac{\mathrm{d}t}{t-1}\\
+    &= \frac{\ln\left(\left|\frac{b}{\gls{n}}-1\right|\right)-\ln\left(\left|\frac{a}{\gls{n}}-1\right|\right)}{\ln(\gls{delta})}\\
+    &= \frac{\ln\left(\frac{\gls{n}-b}{\gls{n}-a}\right)}{\ln(\gls{delta})}.
+\end{align*}
 
-        Actually, the adversary never takes advantage from placing a fake block. Even though it may be interesting in order to ensure that \(m\) is odd, it also imply that sampling this block results in getting caught by the client. Hence, the only case where the adversary may want to put a fake block is in order not to have lost computational power when setting up the attack. Indeed, as a recall, the adversary has to mine \(\Cindex{f+1}'\), which makes them basically lose money since they don't mine on the main chain. If the adversary does not manage to mine \(\Cindex{f+2}'\) before they hear about \(\Cindex{f+2}\), they will most likely fail to mine the merging block, since the main chain would have begin to try to do so by then. An adversary with a lot of computational power may still try to mine honestly \(\Cindex{f+2}'\) and then to mine \(\Cindex{m}\). The optimality of this case will be discussed in \autoref{section:mdp}.
+\section{Adversarial strategies for mining a block}
+\label{section:miningstrategies}
+    When the adversary tries to mine a block in its fork (or the merging block), they have two strategies when they don't manage to mine it before the main chain mines the equivalent honest block:
+    \begin{itemize}
+        \item continue to try to mine the same block and when they manage to do it add a number of fake blocks equivalent to the number of blocks mined by the main chain meanwhile;
+        \item give up on mining this block, add a fake block in lieu and try to mine the new block.
+    \end{itemize}
+    The only advantage of the first solution is that the adversary does not waste the computational power spent on trying to mine this block. However, according to the Bitcoin backbone protocol \cite{Backbone}, mining a block can be represented as a random variable following a geometric distribution, the one mining the block being the one that had the first success. Since the geometric distribution is memoryless, the adversary doesn't gain anything by continuing to try to mine the same block. Furthermore, the second solution allows the adversary to obfuscate the fake \glspl{utxo} they intend to use. Indeed, to know that a \gls{utxo} is fake, the client has no choice but to recursively follow a transaction until one is proven fake.
+    
+    Hence, we will in the following assume that the adversary follows the second strategy for mining a block, that is adding a fake block as soon as they know they have failed to mine the corresponding block.
 
-        The adversary still has to mine honestly \(\Cindex{f+1}'\). Assuming that they follow the strategy according to which they give up if they don't manage to do it before they hear about \(\Cindex{f+1}\), they manage to mine \(\Cindex{f+1}'\) with probability \(\mu\). Then, they try to mine \(\Cindex{f+2}'\). With probability at least \(\mu\), they manage to do it before they hear about \(\Cindex{f+2}'\). As a recall, because of the previous mining strategy concerning the forking block, the adversary will begin to try to mine \(\Cindex{f+2}'\) before the main chain even began to try to mine \(\Cindex{f+2}\). If they manage to mine \(\Cindex{f+2}'\), then they wait for hearing about \(\Cindex{f+2}\) so that they can try to mine the merging block. If they don't, they place a fake block in lieu of what should have been the merging block in their fork and try again. As stated in \autoref{section:miningprob}, they will in average place \(\frac{1-\mu}{\mu}\) fake blocks before managing to mine the merging block.
+\section{Time and number of fake blocks necessary for mining a block}
+\label{section:blockmined}
 
-        In order for the attack to succeed, it is necessary that:
+Since we know from \autoref{section:miningstrategies} that the best strategy for mining a block is giving up as soon as one knows that they failed to mine the block before the main chain, it follows that mining the forking block \(\Cindex{f+1}'\) does not add any fake blocks to the adversary's fork, since the forking block is supposed to be the first. Hence, the only thing to compute is how much attempts it will take the adversary before they manage to mine \(\Cindex{f+1}'\) before the main chain mines \(\Cindex{f+2}\). Let us denote this time \(t_f\). \(t_f\) is a random variable that follows a geometric distribution with parameter \gls{mu} and with support \(\mathbf{N}^*\). Thus, we have:
 
-        \begin{itemize}
-          \item no fake block is sampled;
-          \item \(\Cindex{f+2}'\) is not sampled if it is fake; 
-          \item \(\Cindex{m}\) and \(\Cindex{m-1}'\) are not both sampled;
-          \item \(\Cindex{m}\) is not sampled if \(m\) is even.  
-        \end{itemize}
+\[\E{t_f}=\frac{1}{\gls{mu}}.\]
 
-        The probability that no fake block is sampled (excluding \(\Cindex{f+2}'\)) is at least \(1-(m-f-3)\,p_{m-1}\). Hence, in average, the probability of success for this attack is at least:
+Hence, in average, \(\frac{1}{\gls{mu}}\) blocks will be mined before the adversary manages to mine the forking block before the main chain manages to mine \(\Cindex{f+1}\).
 
-        \[
-                \mu\,\left[\mu+(1-\mu)\,\left(1-p_{f+2}\right)\right]\,\left[1-\frac{1-\mu}{\mu}\,p_{m-1}\right]\,\left[\frac12\,p_m\,p_{m-1}+1-p_m\right]
-        .\] 
+Using a similar reasoning, mining a block \(x\) that is not the forking block will take \(t_x\) blocks, where \(t_x\) follows a geometric distribution with parameter \gls{mu} and with support \(\mathbf{N}^*\). The adversary would then have to include \(t_x-1\) fake blocks in their fork.
 
-        However, and this is when it becomes interesting for the adversary, it is possible to prepare this attack. The adversary has the possibility to try to run this attack without including fake blocks, which they manage with probability \(\mu^3\). Once the attack is set up, it is only necessary that either \(\Cindex{m}\) is not sampled, or, if \(\Cindex{m}\) is sampled, that \(\Cindex{f+2}'\) is not sampled. Since the adversary prepares the attack, they can also begin the attack at position \(f\) with \(f\) being even, so that \(m\) is odd in case of success. Hence, for a prepared attack, the probability of success is:
+Furthermore, we have to define what it means for the adversary to have a portion \gls{mu} of the total computational power. This will be used in the second setup, since the adversary has to mine two blocks faster than the main chain does. Since we know that we can model the number of tries necessary to mine a block follows a geometric distribution with support \(\mathbf{N}^*\) and whose parameter is a function of the total computational power, we can define two random variables \(H\) and \(A\) which represent the number of times the honest miners (respectively the adversary) have to query the random oracle defined in \cite{Backbone} to manage to mine the block. These two random variables are independent and have respectively one unknown parameter, \(a\) or \(h\). What we know is that a \gls{mu} portion of the blocks are going to be mined by the adversary. Hence, we have:
+\[\P{A<H}+\gls{beta}\,\P{A=H}=\gls{mu}.\]
+Here, \gls{beta} is a network parameter that captures how often an adversary is designed as the miner of a block when them and a honest miner simultaneously sent a \gls{pow} to the remaining of the network. For instance, if the adversary is able to completely reorder every message sent during a round, then \gls{beta} would be nil. This means that the adversary mines more than a \gls{mu} portion of the blocks: they would mine a \gls{mu} portion of the blocks plus those for which they queried the random oracle as much as another miner. For a balanced system, \gls{beta} would be equal to \(\frac12\): both the adversary, that has a \gls{mu} portion of the total computational power, and the remaining of the network, that has a \(1-\gls{mu}\) portion of the computational power would mine the same number of blocks for which they queried the random oracle as much as the other. Hence, the adversary would mine a \gls{mu} portion of the blocks, while the remaining of the miners would mine a \(1-\gls{mu}\) portion of the blocks.
+Thus:
+\begin{align*}
+    \gls{mu} &= \sum_{i=1}^{+\infty}\P{(A\leqslant i)\cap(H=i+1)} + \gls{beta}\,\sum_{i=1}^{+\infty}\P{(A=i)\cap(H=i)}\\
+    &= \sum_{i=1}^{+\infty}\P{A\leqslant i}\,\P{H=i+1} + \gls{beta}\,\sum_{i=1}^{+\infty}\P{A=i}\,\P{H=i}\\
+    &= h\,\sum_{i=1}^{+\infty}\left[1-(1-a)^i\right]\,(1-h)^i + a\,h\,\gls{beta}\,\sum_{i=1}^{+\infty}\left[(1-a)\,(1-h)\right]^{i-1}\\
+    &= h\,\left[\sum_{i=1}^{+\infty}(1-h)^i-\sum_{i=1}^{+\infty}\left[(1-a)\,(1-h)\right]^i\right] + \frac{a\,h\,\gls{beta}}{1-(1-a)\,(1-h)}\\
+    &= 1 - h - \frac{h\,(1-a)\,(1-h)}{1-(1-a)\,(1-h)} + \frac{a\,h\,\gls{beta}}{1-(1-a)\,(1-h)}\\
+    &= \frac{1-(1-a)\,(1-h)-h+h\,(1-a)\,(1-h)-h\,(1-a)\,(1-h)+a\,h\,\gls{beta}}{1-(1-a)\,(1-h)}\\
+    &= a\,\frac{1-h\,(1-\gls{beta})}{1-(1-a)\,(1-h)}\\
+    &= a\,\frac{1-h\,(1-\gls{beta})}{a+h-a\,h}.
+\end{align*}
 
-        \begin{align*}
-          p_{\text{success}} &= 1-p_m+p_m\,\left(1-p_{f+2}\right)\\
-                             &= 1 - p_m\,p_{f+2}\\
-                             &= 1 - p_m\,p_{m-1}\\
-                             &= 1 - \frac{\ln\left(1-\frac{1}{n-m}\right)\,\ln\left(1-\frac{1}{n-m+1}\right)}{\ln^2(\delta)}\\
-                             &\geqslant 1 - \frac{\ln^2\left(1-\frac{1}{n-m}\right)}{\ln^2(\delta)}
-        \end{align*}
+Note that the choice of \(a\) does not matter in this case. Hence, if we define \(h\) to be 1, we would have \(a=\frac{\gls{mu}}{\gls{beta}}\). Thus, as long as \(\gls{mu}\leqslant\gls{beta}\), we can define \(a\) to be equal to \(\frac{\gls{mu}}{\gls{beta}}\). In our analysis, we will assume that, contrarily to the original \FC\ paper, the adversary cannot reorder the messages during a round. Hence, we set \(\gls{beta}=\frac12\), and thus \(a=2\,\gls{mu}\).
 
-        Overall, this strategy is riskier than the previous one, since including a fake block implies that sampling that one block results in failing, just like before. However, it is safer to use it when it is possible to prepare the attack, that is to mine the blocks correctly, and to retry until the perfect case happens.
+\section{Probability for the attack to succeed using the first setup}
+\label{section:firstsetup}
+    As a recall, the adversary wants to have a similar setup to the one depicted on \autoref{figure:withfakecreating}. This is essentially a two-steps process: the adversary firstly mines \(\Cindex{f+1}'\), then mines the merging block \(\Cindex{m}\). 
+    
+    According to \autoref{section:blockmined}, mining the forking block takes in average \(t_f=\frac{1}{\gls{mu}}\) blocks. Once the forking block has been mined, the only thing left to do is mining the merging block. Remember however that if the adversary has to include more than \gls{Fbar} fake blocks in their fork, then they redo everything from the beginning. We are thus interested in the probability that \(\gls{F}=t_m-1\leqslant\gls{Fbar}\). Since \(\gls{F}=t_m-1\) follows a geometric distribution with parameter \gls{mu} and with support \(\mathbf{N}\), we know that:
+    
+    \[\P{\gls{F}\leqslant\gls{Fbar}} = 1 - (1-\gls{mu})^{\gls{Fbar}+1}.\]
+    
+    Each time the adversary fails to have \(\gls{F}\leqslant\gls{Fbar}\), \(t_f+\gls{Fbar}+1\) blocks have been mined on the main chain. The number of times the adversary has to retry follows a geometric distribution with parameter \(\P{\gls{F}\leqslant\gls{Fbar}}\) and with support \(\mathbf{N}\). Hence, the adversary will in average make \(\frac{1-\P{\gls{F}\leqslant\gls{Fbar}}}{\P{\gls{F}\leqslant\gls{Fbar}}}\) failed attempts before managing to have \(\gls{F}\leqslant\gls{Fbar}\).
+    
+    Finally, we are interested in \(\ES{\gls{F}}{\gls{F}\leqslant\gls{Fbar}}\), which is the average number of fake blocks the adversary has included in their fork knowing they succeeded. We have:
+    
+    \[\ES{\gls{F}}{\gls{F}\leqslant\gls{Fbar}} = \sum_{k=0}^{\gls{Fbar}}k\,\PS{\gls{F}=k}{\gls{F}\leqslant\gls{Fbar}}.\]
+    
+    Hence:
+    
+    \begin{align*}
+        \ES{\gls{F}=}{\gls{F}=\leqslant\gls{Fbar}} &= \sum_{k=0}^{\gls{Fbar}}k\,\frac{\P{\gls{F}=k}}{\P{\gls{F}\leqslant\gls{Fbar}}}\\
+        &= \frac{1}{\P{\gls{F}\leqslant\gls{Fbar}}}\,\sum_{k=0}^{\gls{Fbar}}k\,\gls{mu}\,(1-\gls{mu})^k\\
+        &= \frac{\gls{mu}\,(1-\gls{mu})}{1 - (1-\gls{mu})^{\gls{Fbar}+1}}\,\sum_{k=0}^{\gls{Fbar}}k\,(1-\gls{mu})^{k-1}\\
+        &= \frac{\gls{mu}\,(1-\gls{mu})\,\left[1-(1-\gls{mu})^{\gls{Fbar}}\,(\gls{Fbar}\,\gls{mu}+1)\right]}{\left[1 - (1-\gls{mu})^{\gls{Fbar}+1}\right]\,\gls{mu}^2}\\
+        &= \frac{(1-\gls{mu})\,\left[1-(1-\gls{mu})^{\gls{Fbar}}\,(\gls{Fbar}\,\gls{mu}+1)\right]}{\gls{mu}\,\left[1 - (1-\gls{mu})^{\gls{Fbar}+1}\right]}.
+    \end{align*}
+    
+    Finally, by adding 1 since the adversary also has to mine the merging block itself, the number of blocks that will be mined while the adversary tries to have this setup is in average:
+    
+    \[\ES{\gls{tsetup}}{\gls{mu},\gls{Fbar}} = \frac{(1-\gls{mu})^{\gls{Fbar}+1}}{1 - (1-\gls{mu})^{\gls{Fbar}+1}}\,\left[\frac{1}{\gls{mu}}+\gls{Fbar} + 1\right] + \frac{1}{\gls{mu}} + \frac{(1-\gls{mu})\,\left[1-(1-\gls{mu})^{\gls{Fbar}}\,(\gls{Fbar}\,\gls{mu}+1)\right]}{\gls{mu}\,\left[1 - (1-\gls{mu})^{\gls{Fbar}+1}\right]} + 1.\]
+    
+    This formula probably deserves some explanation. It is basically the sum of the different parts in the setup we discussed. The first term is:
+    
+    \[\underbrace{\frac{(1-\gls{mu})^{\gls{Fbar}+1}}{1 - (1-\gls{mu})^{\gls{Fbar}+1}}}_{\text{Number of failures}}\,\underbrace{\left[\frac{1}{\gls{mu}}+\gls{Fbar} + 1\right]}_{\text{Blocks per failure}}\]
+    
+    which catches the expected number of blocks mined before the adversary manages to put the setup in place. It's the product between the expected number of failures and the expected number of blocks mined by the main chain meanwhile. While the first is given by \(\P{\gls{F}\leqslant\gls{Fbar}}\), the second is given by the sum of the expected number of blocks to be mined to mine the forking block, that is \(\frac{1}{\gls{mu}}\), plus \(T+1\) blocks during which the adversary tried to mine the merging block.
+    
+    Then, the second term is \(\frac{1}{\gls{mu}}\), which is the expected number of blocks mined by the main chain while the adversary was trying to mine the merging block, on the attempt where they managed to place less than \(T\) fake blocks in their fork. Finally, the final term is:
+    
+    \[\frac{(1-\gls{mu})\,\left[1-(1-\gls{mu})^{\gls{Fbar}}\,(\gls{Fbar}\,\gls{mu}+1)\right]}{\gls{mu}\,\left[1 - (1-\gls{mu})^{\gls{Fbar}+1}\right]} + 1\]
+    
+    which is the expected number of fake blocks that the adversary had to add to their fork plus the merging block. It is now possible to get a much simpler formula using these terms:
+    
+    \begin{align*}
+        \ES{\gls{tsetup}}{\gls{mu},\gls{Fbar}} &= \frac{(1-\gls{mu})^{\gls{Fbar}+1}}{1 - (1-\gls{mu})^{\gls{Fbar}+1}}\,\left[\frac{1}{\gls{mu}}+\gls{Fbar} + 1\right] + \frac{1}{\gls{mu}} + \frac{(1-\gls{mu})\,\left[1-(1-\gls{mu})^{\gls{Fbar}}\,(\gls{Fbar}\,\gls{mu}+1)\right]}{\gls{mu}\,\left[1 - (1-\gls{mu})^{\gls{Fbar}+1}\right]} + 1\\
+        &= \left[\frac{1}{1-(1-\gls{mu})^{\gls{Fbar}+1}}-1\right]\,\left[\frac{1}{\gls{mu}}+\gls{Fbar} + 1\right] + \frac{(1-\gls{mu})\,\left[1-(1-\gls{mu})^{\gls{Fbar}}\,(\gls{Fbar}\,\gls{mu}+1)\right]}{\gls{mu}\,\left[1 - (1-\gls{mu})^{\gls{Fbar}+1}\right]} + 1 + \frac{1}{\gls{mu}}\\
+        &= \frac{1}{\gls{mu}\,\left[1-(1-\gls{mu})^{\gls{Fbar}+1}\right]}\,\left[2+\gls{Fbar}\,\gls{mu}\,\left(1-(1-\gls{mu})^{\gls{Fbar}+1}\right)-(1-\gls{mu})^{\gls{Fbar}+1}\right] - \gls{Fbar}\\
+        &= \frac{1}{\gls{mu}\,\left[1-(1-\gls{mu})^{\gls{Fbar}+1}\right]}\,\left[2-(1-\gls{mu})^{\gls{Fbar}+1}\right]\\
+        &= \frac{1}{\gls{mu}\,\left[1-(1-\gls{mu})^{\gls{Fbar}+1}\right]} + \frac{1}{\gls{mu}}\\
+        &= \frac{1}{\gls{mu}}\,\left[1 + \frac{1}{1 - (1-\gls{mu})^{T+1}}\right].
+    \end{align*}
+    
+    Since we know the number of fake blocks that the adversary will include in average in its fork, we can also compute the probability that at least one of these blocks is sampled. Plus, it is important to note that the client must not sample the merging block. This leads to the following probability of success:
+    \begin{align*}
+        \gls{psuccess} &= 1 - p_{\gls{m}-t_m+1,\gls{m}+1}\\
+         &= 1 - \frac{\ln\left(\frac{\gls{depth}-1}{\gls{depth}+t_m-1}\right)}{\ln(\gls{delta})}\\
+         &= 1 - \frac{\ln\left(1-\frac{t_m}{\gls{depth}+t_m-1}\right)}{\ln(\gls{delta})}
+    \end{align*}
+    Using the law of unconscious statistician, we have:
+    \begin{align*}
+        \ES{\gls{psuccess}}{\gls{F}\leqslant\gls{Fbar}} &= 1 - \frac{\gls{mu}}{\ln(\gls{delta})\,\left[1-(1-\gls{mu})^{\gls{Fbar}+1}\right]}\,\sum_{k=0}^{\gls{Fbar}}\ln\left(1-\frac{k+1}{k+\gls{depth}}\right)\,(1-\gls{mu})^{k}
+    \end{align*}
+    
+    It is now possible to visualise how the parameters influence the probability of success of the attack, which is the goal of the next section.
+    
+\section{Analysis of the \cs\ attack on \FC\ using the first setup}
+\label{section:firstsetupanalysis}
+During this section, we will assume that \(\gls{delta}=2^{-10}\), since this is the value taken as example in \cite{\FCCite}. As a recall, the goal of the adversary is to minimise their cost \gls{Cost} so that it is lower than their potential maximal gain \gls{G}. Plus, once they have setup the attack, they want it to succeed with high probability. The only parameter that affects their cost is \gls{Fbar}: the higher \gls{Fbar}, the less they would have to mine on their fork rather than on the main chain, this the less they lose coins. However, increasing \gls{Fbar} leads to decreasing the probability of success of the attack, what can be counterbalanced by increasing \gls{depth}. Hence, what can be interesting to look at is the evolution of the probability of success of the attack, given that the adversary set \(\gls{Fbar}=+\infty\) and has a portion \gls{mu} of the total computational power. This is shown on \autoref{figure:nmmimpact}.
 
-      \section{Deriving the optimal strategy from a Markov Decision Process}
-        \label{section:mdp}
-        
-      \section{Probability for the merging block or fake blocks to be sampled using the Bitcoin protocol}
-        \FC\ can be implemented to work on a blockchain with a variable difficulty, like the Bitcoin one. The velvet fork attack works just the same as in the constant difficulty case. The goal of this section is to show that the computations made in the previous sections are still close to reality when the underlying protocol uses variable difficulty.
-        
-        Indeed, the previous analysis considers the input space \([0\,;\,1]\) of the distribution function as a variable that ranges over blocks. For instance, \(x=\frac12\) roughly corresponds to the block at position \(\frac{n}{2}\) in the blockchain. However, as described in \cite{\FCCite}, one can adapt \FC\ to work with variable difficulty by considering \([0\,;\,1]\) as a variable that ranges over the difficulty. For instance, \(x=\frac{1}{2}\) roughly corresponds to the block where \(\frac12\) of the total computational power has been mined. This is actually a generalization of the previous process: under a constant difficulty, half of the total computational power has been spent roughly at block \(\frac{n}{2}\).
-        
-        Using data from \cite{BTCDifficulty}, we can plot the graph of the Bitcoin difficulty over time, using \([0\,;\,1]\) as an space that ranges over blocks, which is shown on \autoref{figure:diff1}.
-        
-        \begin{figure}[ht]
-          \centering
-          \begin{tikzpicture}
-            \begin{axis}[ylabel={Difficulty}, no marks, width=.6\textwidth]
-              \addplot table[x index=0, y index=1] {data/difficulty.txt};
+\begin{figure}[ht]
+    \centering
+    \begin{tikzpicture}
+        \begin{axis}[grid=major,
+            xlabel={\gls{depth}},
+            ylabel={\(\ES{\gls{psuccess}}{\gls{Fbar}=+\infty}\)},
+            legend entries={\(\gls{mu}=50\%\), \(\gls{mu}=33\%\), \(\gls{mu}=25\%\), \(\gls{mu}=10\%\)},
+            no marks,
+            legend style={at={(1,0)},anchor=south east},
+            width=\figurewidth\textwidth,
+            xmode=log
+        ]
+            \addplot table[x index=0, y index=1]{data/first_setup_analysis/nmmimpact.txt};
+            \addplot table[x index=0, y index=2]{data/first_setup_analysis/nmmimpact.txt};
+            \addplot table[x index=0, y index=3]{data/first_setup_analysis/nmmimpact.txt};
+            \addplot table[x index=0, y index=4]{data/first_setup_analysis/nmmimpact.txt};
+        \end{axis}
+    \end{tikzpicture}
+    \caption{Convergence of \gls{psuccess} to 1 as \gls{depth} goes to infinity}
+    \label{figure:nmmimpact}
+\end{figure}
+
+The fact that \(\ES{\gls{psuccess}}{\gls{Fbar}=+\infty}\) converges to 1 as \gls{depth} goes to infinity indicates that no matter what \gls{Fbar} is, the adversary can manage to have a very high probability of success as long as they wait long enough for \gls{depth} to be high. Hence, we introduce a final parameter \gls{tbar} which designates the maximum average time that an adversary is willing to wait before the moment they setup the attack and the moment they send the proof of inclusion to the verifier. As a consequence, this leads to a largest \gls{depth} possible, since:
+\[\gls{depth}\leqslant\gls{tbar}-\ES{\gls{tsetup}}{\gls{mu}, \gls{Fbar}}.\]
+Hence, the expected strategy for the adversary is the following: using \gls{tbar} they can compute the largest \gls{depth} possible according to what they chose for \gls{Fbar}. Since there is now a largest possible \gls{depth}, the adversary cannot always set \(\gls{Fbar}=+\infty\), especially when either \gls{mu} is low or when the desired \gls{psuccess} is high. This phenomenon is shown on \autoref{figure:setuptimewithpsuccess}. Note that the adversary's cost is equal to \(\ES{\gls{tsetup}}{\gls{mu},\gls{Fbar}} - 1\), since the merging block is mined on the main chain.
+
+\begin{figure}[ht]
+    \centering
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering 
+        \begin{tikzpicture}
+            \begin{axis}[grid=major,
+                xlabel={\(\ES{\gls{psuccess}}{\gls{F}\leqslant\gls{Fbar}}\)},
+                ylabel={\(\ES{\gls{tsetup}}{\gls{mu},\gls{Fbar}} - 1\)},
+                legend entries={\(\gls{mu}=50\%\), \(\gls{mu}=33\%\), \(\gls{mu}=25\%\), \(\gls{mu}=10\%\)},
+                no marks,
+                legend style={at={(0,1)}, anchor=north west, nodes={scale=0.57857, transform shape}},
+                width=.9\textwidth,
+            ]
+                \addplot table[x index=0, y index=1]{data/first_setup_analysis/setuptimewithpsuccess5050.txt};
+                \addplot table[x index=0, y index=1]{data/first_setup_analysis/setuptimewithpsuccess3350.txt};
+                \addplot table[x index=0, y index=1]{data/first_setup_analysis/setuptimewithpsuccess2550.txt};
+                \addplot table[x index=0, y index=1]{data/first_setup_analysis/setuptimewithpsuccess1050.txt};
             \end{axis}
-
-          \end{tikzpicture}
-          \caption{Difficulty of the Bitcoin protocol}
-          \label{figure:diff1}
-        \end{figure}
-        
-        However, what we're interested in is the cumulated difficulty over time, which is shown on \autoref{figure:diff2} and which we denote \(d\).
-        
-        \begin{figure}[ht]
-          \centering
-          \begin{tikzpicture}
-            \begin{axis}[xlabel={Block position},ylabel={Cumulated difficulty}, no marks, width=.6\textwidth]
-              \addplot table[x index=0, y index=1] {data/cumulated_difficulty.txt};
+        \end{tikzpicture}
+        \caption{Adversary's cost for \(\gls{tbar}=50\)}
+        \label{figure:setuptimewithpsuccess144}
+    \end{subfigure}
+    ~
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \begin{tikzpicture}
+            \begin{axis}[grid=major,
+                xlabel={\(\ES{\gls{psuccess}}{\gls{F}\leqslant\gls{Fbar}}\)},
+                ylabel={\(\ES{\gls{tsetup}}{\gls{mu},\gls{Fbar}} - 1\)},
+                legend entries={\(\gls{mu}=50\%\), \(\gls{mu}=33\%\), \(\gls{mu}=25\%\), \(\gls{mu}=10\%\)},
+                no marks,
+                legend style={at={(0,1)}, anchor=north west, nodes={scale=0.57857, transform shape}},
+                width=.9\textwidth,
+            ]
+                \addplot table[x index=0, y index=1]{data/first_setup_analysis/setuptimewithpsuccess50200.txt};
+                \addplot table[x index=0, y index=1]{data/first_setup_analysis/setuptimewithpsuccess33200.txt};
+                \addplot table[x index=0, y index=1]{data/first_setup_analysis/setuptimewithpsuccess25200.txt};
+                \addplot table[x index=0, y index=1]{data/first_setup_analysis/setuptimewithpsuccess10200.txt};
             \end{axis}
+        \end{tikzpicture}
+        \caption{Adversary's cost for \(\gls{tbar}=200\)}
+        \label{figure:setuptimewithpsuccess288}
+    \end{subfigure}
+    \caption{Evolution of the adversary's cost as \gls{tbar} grows}
+    \label{figure:setuptimewithpsuccess}
+\end{figure}
 
-          \end{tikzpicture}
-          \caption{Cumulated difficulty of the Bitcoin protocol}
-          \label{figure:diff2}
-        \end{figure}
+What these figures show is that as expected, \gls{tbar} impacts the adversary's choice concerning \gls{Fbar}. As seen on \autoref{figure:setuptimewithpsuccess144}, it is easier for high computational powers to set \(\gls{Fbar}=+\infty\), which is represented by a constant time in order to setup the attack. On the other hand, a smaller computational power is forced to decrease \gls{Fbar} in order to obtain the probability they want. Using the same logic, even with a high computational power, the adversary is forced to decrease \gls{Fbar} in order to obtain a very high \gls{psuccess}, since \gls{depth} is upper bound because of \gls{tbar}. This is shown on \autoref{figure:setuptimewithpsuccesszoom}.
+
+\begin{figure}[ht]
+    \centering
+    \begin{tikzpicture}
+        \begin{axis}[axis x line=none,
+            axis y line*=right,
+            ylabel={Corresponding optimal \gls{Fbar}},
+            width=\figurewidth\textwidth,
+        ]
+            \addplot[dashed, blue] table[x index=0, y index=2]{data/first_setup_analysis/setuptimewithpsuccesszoom50.txt};
+            \addplot[dashed, red] table[x index=0, y index=2]{data/first_setup_analysis/setuptimewithpsuccesszoom33.txt};
+            \addplot[dashed, brown] table[x index=0, y index=2]{data/first_setup_analysis/setuptimewithpsuccesszoom25.txt};
+        \end{axis}
         
-        Since what we essentially want is to translate a variable that ranges over the block space to a variable, we denote \(d\) such a function. Hence, the resulting sampling distribution \(s\) is \(x\in[0\,;\,1]\mapsto\frac{1}{(d(x) - 1)\,\ln\left(\frac{n}{L}\right)}\). Still, we have to have \(\int_0^{1-\delta}s(x)\,\mathrm{d}x=1\). Hence, the final sampling distribution \(s\) is:
-        
-        \[\forall x\in[0\,;\,1-\delta],s(x)=\frac{1}{[d(x)-1]\,\int_{0}^{1-\delta}\frac{\mathrm{d}x}{d(x)-1}}\]
-        
-        \autoref{figure:d} represents the graph of \(d\), while \autoref{figure:s} represents the final sampling distribution compared to the previous one.
-                
-        \begin{figure}[ht]
-          \centering
-          \begin{tikzpicture}
-            \begin{axis}[xlabel={Cumulated difficulty}, ylabel={Block position}, no marks, width=.6\textwidth]
-              \addplot table[x index=1, y index=0] {data/cumulated_difficulty.txt};
+        \begin{axis}[grid=major,
+            xlabel={\(\ES{\gls{psuccess}}{\gls{F}\leqslant\gls{Fbar}}\)},
+            ylabel={\(\ES{\gls{tsetup}}{\gls{mu},\gls{Fbar}} - 1\)},
+            legend entries={\(\gls{mu}=50\%\), \(\gls{mu}=33\%\), \(\gls{mu}=25\%\)},
+            no marks,
+            legend style={at={(0,1)},anchor=north west},
+            width=\figurewidth\textwidth,
+            x tick label style={
+                /pgf/number format/.cd,
+                    fixed,
+                    fixed zerofill,
+                    precision=3,
+                /tikz/.cd
+            }
+        ]
+            \addplot table[x index=0, y index=1]{data/first_setup_analysis/setuptimewithpsuccesszoom50.txt};
+            \addplot table[x index=0, y index=1]{data/first_setup_analysis/setuptimewithpsuccesszoom33.txt};
+            \addplot table[x index=0, y index=1]{data/first_setup_analysis/setuptimewithpsuccesszoom25.txt};
+        \end{axis}
+    \end{tikzpicture}
+    \caption{Adversary's cost for \(\gls{tbar}=50\) for a high \(\ES{\gls{psuccess}}{\gls{F}\leqslant\gls{Fbar}}\) along with corresponding \gls{Fbar}. Dashed lines correspond to \gls{Fbar}}
+    \label{figure:setuptimewithpsuccesszoom}
+\end{figure}
+
+The structure of the curves is also consistent with what we were expecting. Indeed, the adversary can use the biggest \gls{depth} at their disposal to have a given \gls{psuccess} with \(\gls{Fbar}=+\infty\). Once this is not enough to get the desired probability, the adversary decreases \gls{Fbar} and uses the next largest possible \gls{depth}. This eventually leads to representing \(\ES{\gls{psuccess}}{\gls{mu},\gls{Fbar}}\) as a step function of \gls{psuccess}. Furthermore, since that we know that for \gls{tbar} being not too small and \gls{psuccess} not being too close to 1 the adversary will set \(\gls{Fbar}=+\infty\), then its cost will be equal to \(\frac{2}{\gls{mu}}-1\). This asymptote is shown on \autoref{figure:costwithmu}.
+
+\begin{figure}[ht]
+    \centering
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering 
+        \begin{tikzpicture}
+            \begin{axis}[grid=major,
+                xlabel={\gls{mu}},
+                ylabel={Number of blocks},
+                legend entries={\(\ES{\gls{tsetup}}{\gls{mu},\gls{Fbar}} - 1\), \(\frac{2}{\gls{mu}} - 1\)},
+                no marks,
+                legend style={at={(1,1)}, anchor=north east, nodes={scale=0.57857, transform shape}},
+                width=.9\textwidth,
+                xmin=0
+            ]
+                \addplot table[x index=0, y index=1]{data/first_setup_analysis/costwithmu50.txt};
+                \addplot[dashed, red] table[x index=0, y index=2]{data/first_setup_analysis/costwithmu50.txt};
             \end{axis}
-
-          \end{tikzpicture}
-          \caption{Graph of \(d\)}
-          \label{figure:d}
-        \end{figure}
-        
-        \begin{figure}[ht]
-          \centering
-          \begin{tikzpicture}
-            \begin{axis}[xlabel={Block position}, no marks, legend entries={Variable difficulty, Constant difficulty},legend style={at={(0,1)},anchor=north west}, width=.6\textwidth]
-              \addplot table[x index=0, y index=1] {data/sampling_bitcoin.txt};
-              \addplot table[x index=0, y index=2] {data/sampling_bitcoin.txt};
+        \end{tikzpicture}
+        \caption{Adversary's cost for \(\gls{tbar}=50\)}
+        \label{figure:costwithmu144}
+    \end{subfigure}
+    ~
+    \begin{subfigure}[b]{0.45\textwidth}
+        \centering
+        \begin{tikzpicture}
+            \begin{axis}[grid=major,
+                xlabel={\gls{mu}},
+                ylabel={Number of blocks},
+                legend entries={\(\ES{\gls{tsetup}}{\gls{mu},\gls{Fbar}} - 1\), \(\frac{2}{\gls{mu}} - 1\)},
+                no marks,
+                legend style={at={(1,1)}, anchor=north east, nodes={scale=0.57857, transform shape}},
+                width=.9\textwidth,
+                xmin=0
+            ]
+                \addplot table[x index=0, y index=1]{data/first_setup_analysis/costwithmu200.txt};
+                \addplot[dashed, red] table[x index=0, y index=2]{data/first_setup_analysis/costwithmu200.txt};
             \end{axis}
+        \end{tikzpicture}
+        \caption{Adversary's cost for \(\gls{tbar}=200\)}
+        \label{figure:costwithmu288}
+    \end{subfigure}
+    \caption{Adversary's cost in order to have an average probability of success of \SI{99}{\percent}.}
+    \label{figure:costwithmu}
+\end{figure}
 
-          \end{tikzpicture}
-          \caption{Comparison between the sampling distribution in the constant difficulty case and the one in the variable difficulty case for \(\delta=2^{-10}\)}
-          \label{figure:s}
-        \end{figure}
+Hence, it is possible using this asymptote to derive the actual cost for an attacker which sets \(\gls{tbar}=+\infty\). We will not include the cost that the adversary has to pay to run physical devices that mine blocks, since this is a cost they will pay whatever they do. However, we must take into account the coins that the adversary loses by not mining on the main chain. According to \cite{BlockReward}, mining a block is currently worth \SI{6.25}{\bitcoin}. Plus, according to \cite{BitcoinValue}, a Bitcoin coin is currently worth \SI{11826.90}[\$]{}. Hence, if the adversary owns a portion \gls{mu} of the total computational power, then they lose \(\num{73918.125}\,\gls{mu}\) USD in average per block mined on the main chain while they are mining on their fork. Since they will in average spend \(\frac{2}{\gls{mu}}-1\) blocks mining on their fork, it follows that the cost of the \cs\ attack on \FC\ is given by:
+\[\gls{Cost}=\num{73918.125}\,(2-\gls{mu}).\]
+Hence, assuming that an adversary owns at most half of the total computational power, the minimal cost \gls{Cost} that they have to pay to pull off a \cs\ attack on \FC\ using this setup is:
+\[\gls{Cost}=\SI{110877.1875}[\$]{}.\]
+    
+\section{Probability for the attack to succeed using the second setup}
+\label{section:secondsetup}
+We now want to compute the cost that the adversary has to pay to put the setup depicted on \autoref{figure:withfakedoublecreating} in place. This setup only makes sense when the adversary includes no other fake block than the one used to create coins. Indeed, the goal is to lower the probability that the attack fails because of the merging block being sampled. Thus, adding a fake block for this purpose makes no sense.
+
+We can use a similar reasoning to the one in \autoref{section:firstsetup}. First of all, the adversary has to mine \(\Cindex{f+1}'\), in which they will include the fake \glspl{utxo}. They don't gain anything in continuing to try to mine \(\Cindex{f+1}'\) if they hear about \(\Cindex{f+1}\) before they manage to mine it. Hence, they will in average wait \(\frac{1}{\gls{mu}}\) blocks before they manage to mine \(\Cindex{f+1}'\) before the main chain mines the equivalent honest block, according to \autoref{section:blockmined}.
+
+Starting from here, the adversary has to mine both \(\Cindex{f+2}'\) and \Cindex{m} before the main chain mines the corresponding honest blocks. However, even if they manage to mine \(\Cindex{f+2}'\) before the main chain mines \Cindex{f+2}, they still have to wait to hear about \Cindex{f+2} so that they can begin to mine the merging block.
+
+According to \autoref{section:blockmined}, let us call \(A_x\) the random variable that counts the number of queries the adversary has to make to the random oracle described in \cite{Backbone} to mine the block at position \(x\). This random variable follows a geometric distribution with parameter \(2\,\gls{mu}\) and support \(\mathbf{N}^*\). Furthermore, let us denote \(H_x\) the number of queries that the honest miners have to make. \(H_x\) follows a geometric distribution with support \(\mathbf{N}^*\) and parameter 1. Hence, \(H_x\) is a constant random variable of value \(1\).  The probability that the adversary manages to put the attack in place is then:
+\[\P{\max\left(A_{\gls{f}+2},H_{\gls{f}+2}\right)+A_{\gls{m}} < H_{\gls{f}+2}+H_{\gls{m}}} + \frac12\,\P{\max\left(A_{\gls{f}+2},H_{\gls{f}+2}\right)+A_{\gls{m}} = H_{\gls{f}+2}+H_{\gls{m}}}\]
+or more simply:
+\[\frac12\,\P{A_{\gls{f}+2}+A_{\gls{m}} = 2}.\]
+Hence, this probability is equal to:
+\begin{align*}
+    \frac12\,\P{A_{\gls{f}+2}+A_{\gls{m}} = 2} &= \frac12\P{\left(A_{\gls{f}+2}=1\right)\cap\left(A_{\gls{m}}=1\right)}\\
+    &= \frac12\P{A_{\gls{f}+2}=1}\,\P{A_{\gls{m}}=1}\\
+    &= 2\,\gls{mu}^2.
+\end{align*}
+Thus, the adversary has in average to make \(\frac{1-2\gls{mu}^2}{2\,\gls{mu}^2}\) tries before they manage to setup the attack. At each attempt, the adversary will wait the time necessary to mine the forking block, that is \(\frac{1}{\gls{mu}}\) in average, plus the two other blocks they tried to mine. Hence, the average time in blocks the adversary has to wait is given by:
+\[\ES{\gls{tsetup}}{\gls{mu}} = \frac{1-2\,\gls{mu}^2}{2\,\gls{mu}^2}\,\left(2+\frac{1}{\gls{mu}}\right)+3.\]
+Then, it is possible to compute \gls{psuccess} using this. The attack fails if \Cindex{\gls{m}} and \(\Cindex{f+2}'\) are both sampled or if \(\Cindex{m}\) is sampled and \(m\) is even. Let us call \(E_x\) the event \enquote{the block \(\Cindex{x}\) is sampled}. Then, we have:
+\begin{align*}
+    \gls{psuccess} &= \PS{\text{Success}}{E_{\gls{m}}}\,\P{E_{\gls{m}}} + \PS{\text{Success}}{\overline{E_{\gls{m}}}}\,\P{\overline{E_{\gls{m}}}}\\
+    &= \P{\overline{E_{\gls{m}}}} + \P{E_{\gls{m}}}\,\P{\overline{E_{\gls{m}-1}}\cap\left(\gls{m}\ \mathrm{mod}\ 2=0\right)}\\
+    &= 1 - p_{\gls{m}} + \frac12\,p_{\gls{m}}\,\left(1-p_{\gls{m}-1}\right)\\
+    &= 1 - \frac12\,p_{\gls{m}} - \frac12\,p_{\gls{m}}\,p_{\gls{m}-1}\\
+    &= 1 - \frac12\,p_{\gls{m}} - \frac12\,p_{\gls{m}-1,\gls{m}+1}\\
+    &= 1 - \frac{\ln\left(1 - \frac{1}{\gls{depth}}\right) + \ln\left(\frac{\gls{depth}-1}{\gls{depth}+1}\right)}{2\,\ln(\gls{delta})}\\
+    &= 1 - \frac{\ln\left(1 - \frac{1}{\gls{depth}}\right) + \ln\left(1-\frac{2}{\gls{depth}+1}\right)}{2\,\ln(\gls{delta})}.
+\end{align*}
+The next section will analyse this method and compare it to the first one.
+
+\section{Analysis of the \cs\ attack on \FC\ using the second setup and comparison with the first one}
+We will use the same reasoning as the one made in \autoref{section:firstsetupanalysis}. Since we assume that the adversary can wait as long as they want, then they can have \(\gls{psuccess}\) as close to 1 as they desire. However, the cost of the attack is now given by:
+\begin{align*}
+    \gls{Cost} &= \num{73918.125}\,\gls{mu}\,\left[\frac{1-2\,\gls{mu}^2}{2\,\gls{mu}^2}\,\left(2+\frac{1}{\gls{mu}}\right)+2\right]\\
+    &= \num{73918.125}\,\left[\frac{1-2\,\gls{mu}^2}{2\,\gls{mu}}\,\left(2\,\gls{mu}+1\right)+2\right]\\
+    &= \num{147836.25} + \num{73918.128}\,\frac{1+2\,\gls{mu}-2\,\gls{mu}^2-4\,\gls{mu}^2}{2\,\gls{mu}}
+\end{align*}
+which is clearly higher than the one induced by the first setup, since \SI{147836.25}[\$]{} was already the highest possible cost. However, what is interesting is to compare these methods in terms of time. Experimentally, we know that for \(\gls{depth}=22\), the probability of success of the second setup is above \SI{99}{\percent}. Hence, we can compute the cost of the first setup if the adversary wants a \SI{99}{\percent} chance probability of success while waiting less than \(22+\ES{\gls{tsetup}}{\gls{mu}}\) blocks, where \(\gls{tsetup}\) here refers to the second setup. This is shown on \autoref{figure:comparecost}.
+
+\begin{figure}[ht]
+    \centering
+    \begin{tikzpicture}
+        \begin{axis}[grid=major,
+            xlabel={\gls{mu}},
+            ylabel={\gls{Cost} (USD)},
+            legend entries={First setup with \(\gls{tbar}=22+\ES{\gls{tsetup}}{\gls{mu}}\), First setup with \(\gls{tbar}=+\infty\), Second setup},
+            no marks,
+            legend style={at={(1,1)},anchor=north east},
+            width=\figurewidth\textwidth
+        ]
+            \addplot table[x index=0, y index=1]{data/first_setup_analysis/comparecost1.txt};
+            \addplot table[x index=0, y index=1]{data/first_setup_analysis/comparecost3.txt};
+            \addplot table[x index=0, y index=1]{data/first_setup_analysis/comparecost2.txt};
+        \end{axis}
+    \end{tikzpicture}
+    \caption{Comparison of the two setups}
+    \label{figure:comparecost}
+\end{figure}
+
+What this figure shows is that starting from some high computational power (\(\approx\SI{41}{\percent}\)), it is worth going for the second setup. Hence, the first setup must be chosen when having less than \SI{41}{\percent} of the total computational power. If \(\gls{mu}\geqslant\num{0.41}\) however, then it depends whether the adversary wants to run the attack as fast as possible or not. If this is the case, they should go for the second setup. If not, they still have a lower cost by choosing the first setup.
+
+\section{Probability for the merging block or fake blocks to be sampled using the Bitcoin protocol}
+\label{section:variabledifficulty}
+\FC\ can be implemented to work on a blockchain with a variable difficulty, like the Bitcoin one. The velvet fork attack works just the same as in the constant difficulty case. The goal of this section is to show that the computations made in the previous sections are still close to reality when the underlying protocol uses variable difficulty.
+
+Indeed, the previous analysis considers the input space \([0\,;\,1]\) of the distribution function as a variable that ranges over blocks. For instance, \(x=\frac12\) roughly corresponds to the block at position \(\frac{n}{2}\) in the blockchain. However, as described in \cite{\FCCite}, one can adapt \FC\ to work with variable difficulty by considering \([0\,;\,1]\) as a variable that ranges over the difficulty. For instance, \(x=\frac{1}{2}\) roughly corresponds to the block where \(\frac12\) of the total computational power has been mined. This is actually a generalisation of the previous process: under a constant difficulty, half of the total computational power has been spent roughly at block \(\frac{n}{2}\).
+
+Using data from \cite{BTCDifficulty}, we can plot the graph of the cumulated Bitcoin difficulty over time, using \([0\,;\,1]\) as an space that ranges over blocks, which is shown on \autoref{figure:diff1}.
+
+\begin{figure}[ht]
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[xlabel={Block position},ylabel={Cumulated difficulty}, no marks, width=\figurewidth\textwidth]
+      \addplot table[x index=0, y index=1] {data/cumulated_difficulty.txt};
+    \end{axis}
+
+  \end{tikzpicture}
+  \caption{Cumulated difficulty of the Bitcoin protocol}
+  \label{figure:diff1}
+\end{figure}
+
+Since what we essentially want is to translate a variable that ranges over the block space to a variable, we denote \(d\) such a function. Hence, the resulting sampling distribution \(s\) is \(x\in[0\,;\,1]\mapsto\frac{1}{(d(x) - 1)\,\ln\left(\frac{\gls{n}}{L}\right)}\). Still, we have to have \(\int_0^{1-\gls{delta}}s(x)\,\mathrm{d}x=1\). Hence, the final sampling distribution \(s\) is:
+
+\[\forall x\in[0\,;\,1-\gls{delta}],s(x)=\frac{1}{[d(x)-1]\,\int_{0}^{1-\gls{delta}}\frac{\mathrm{d}x}{d(x)-1}}\]
+
+\autoref{figure:d} represents the graph of \(d\), while \autoref{figure:difference} represents the difference between the final sampling distribution and the previous one.
         
-        The difference between these two functions being small, it may be more convenient to represent the difference between these two, which is shown on \autoref{figure:difference}.
-        
-        \begin{figure}[ht]
-          \centering
-          \begin{tikzpicture}
-            \begin{axis}[xlabel={Block position}, no marks,grid=major, width=.6\textwidth]
-              \addplot table[x index=0, y index=1] {data/difference.txt};
-            \end{axis}
+\begin{figure}[ht]
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[xlabel={Cumulated difficulty}, ylabel={Block position}, no marks, width=\figurewidth\textwidth]
+      \addplot table[x index=1, y index=0] {data/cumulated_difficulty.txt};
+    \end{axis}
+  \end{tikzpicture}
+  \caption{Graph of \(d\)}
+  \label{figure:d}
+\end{figure}
 
-          \end{tikzpicture}
-          \caption{Difference between the sampling distribution in the variable difficulty case and the one in the constant difficulty case for \(\delta=2^{-10}\)}
-          \label{figure:difference}
-        \end{figure}
-
-
-
+\begin{figure}[ht]
+  \centering
+  \begin{tikzpicture}
+    \begin{axis}[xlabel={Block position}, no marks,grid=major, width=\figurewidth\textwidth]
+      \addplot table[x index=0, y index=1] {data/difference.txt};
+    \end{axis}
+  \end{tikzpicture}
+  \caption{Difference between the sampling distribution in the variable difficulty case and the one in the constant difficulty case for \(\delta=2^{-10}\)}
+  \label{figure:difference}
+\end{figure}

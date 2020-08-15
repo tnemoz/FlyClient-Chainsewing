@@ -1,4 +1,5 @@
     In this section, we aim to describe previous works which will then be used as a basis to start from to solve the problematic of this project.
+    
     \section{The principles of a blockchain}
       \subsection{Definition of a PoW blockchain}
         It is necessary to firstly describe what a blockchain actually is, since this is the central object we will be working on.
@@ -15,7 +16,7 @@
         
         \[H\left(p_h\middle|\text{other data}\middle|N\right)\leqslant T\]
         
-        where \(H\) is a hash function (SHA-256 for Bitcoin \cite{SoK}) and \(T\) is \(2^{d}\), \(d\) being the current difficulty of the network \cite{PoDL}. The best approach to find such a nonce is bruteforce \cite{PoDL}, that is testing all the possibilities until one finds a correct one. Hence, finding a solution to this problem proves that computational power was spent on its solve. The Proof of Work (PoW) is then defined as the nonce. Note that since everyone has access to the previous block header, the current difficulty of the network and the block's content, including its header, everyone can also verify the PoW of the block and potentially reject it if does not solve the problem.
+        where \(H\) is a hash function (SHA-256 for Bitcoin \cite{SoK}) and \(T\) is \(2^{d}\), \(d\) being the current difficulty of the network \cite{PoDL}. The best approach to find such a nonce is bruteforce \cite{PoDL}, that is testing all the possibilities until one finds a correct one. Hence, finding a solution to this problem proves that computational power was spent on its solve. The \gls{pow} is then defined as the nonce. Note that since everyone has access to the previous block header, the current difficulty of the network and the block's content, including its header, everyone can also verify the PoW of the block and potentially reject it if does not solve the problem.
         
         Since one trusts only blocks with valid PoW, it means that as long as more than half of the users cooperate according to the rules, then an adversary cannot create another chain as long as the main chain without putting blocks with invalid PoW. Such blocks will be called fake blocks. Hence, even though each user does not trust anyone, this system manages to make payments between user without a centralized authority.
         
@@ -34,7 +35,7 @@
         \label{subsec:txs}
         In the original version of Bitcoin presented in \cite{Bitcoin}, there  were two kinds of different transactions: common transactions and coinbase transactions. Let us begin by describing the former.
         
-        A common transaction takes as an input the output of a one or several previous transactions, be they coinbase or common. Such outputs are called unspent transaction output (UTXO) \cite{Survey}. A transaction can have several outputs, each to a different recipient. A fundamental rule has to be respected though: the sum of the inputs of a transaction has to be strictly greater than the sum of its outputs. Two reasons justify this. First of all, it is not allowed to spend more coins that one owns. The second reason is that each transaction induces a fee, which then goes to the miner of the block, that is the one who found the problem solution. A representation of two transactions can be found on \autoref{figure:txs}. Note that this representation does not take into account the fees. Furthermore, note that the transactions inputs are to be of the same emitter, since they can only use their own coins to pay, that is their own UTXOs.
+        A common transaction takes as an input the output of a one or several previous transactions, be they coinbase or common. Such outputs are called \glspl{utxo} \cite{Survey}. A transaction can have several outputs, each to a different recipient. A fundamental rule has to be respected though: the sum of the inputs of a transaction has to be strictly greater than the sum of its outputs. Two reasons justify this. First of all, it is not allowed to spend more coins that one owns. The second reason is that each transaction induces a fee, which then goes to the miner of the block, that is the one who found the problem solution. A representation of two transactions can be found on \autoref{figure:txs}. Note that this representation does not take into account the fees. Furthermore, note that the transactions inputs are to be of the same emitter, since they can only use their own coins to pay, that is their own \glspl{utxo}.
         
         \begin{figure}[ht]
           \centering

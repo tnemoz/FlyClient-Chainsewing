@@ -3,8 +3,7 @@
 \usepackage[utf8]{inputenc}
 \usepackage[binary-units=true]{siunitx} % Units formatting
 \usepackage[a4paper,hmargin=2.8cm,vmargin=2.0cm,includeheadfoot]{geometry}
-\usepackage{tabularx,longtable,multirow,subfigure,caption}%hangcaption
-\usepackage{fncylab} %formatting of labels
+\usepackage{tabularx,longtable,multirow,subcaption,caption}%hangcaption
 \usepackage{fancyhdr} % page layout
 \usepackage{url}
 \usepackage{graphicx}
@@ -29,9 +28,11 @@
 \usepackage[standard]{ntheorem}
 \usepackage[linguistics]{forest}
 \usepackage{tikz}
-\usetikzlibrary{shapes,arrows,calc,fit,backgrounds,shapes.multipart, positioning, snakes}
+\usetikzlibrary{shapes,arrows,calc,fit,backgrounds,shapes.multipart, positioning, decorations}
 \tikzstyle{block} = [draw, text centered, text width=.2cm, text height=.2cm]
 \usepackage{pgfplots}
+\pgfplotsset{compat=newest, colormap name=viridis}
+\usepgfplotslibrary{groupplots}
 \usepackage[
     backend=bibtex,
     citestyle=numeric-comp,
@@ -83,3 +84,10 @@
   }}
 
 \allowdisplaybreaks
+
+\usepackage[toc,acronym]{glossaries}
+\newglossary[nlg]{notations}{not}{ntn}{Notations}
+\newglossary[nlg]{notationschainsewing}{notc}{ntnc}{NotationsC}
+\newglossary[nlg]{notationsprobabilities}{notp}{ntnp}{NotationsP}
+\makeglossaries
+\loadglsentries{Glossary}

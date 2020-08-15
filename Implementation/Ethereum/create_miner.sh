@@ -7,7 +7,8 @@ else
    echo "Please run the script using bash or zsh."
    exit 2
 fi
-mkdir miner
-geth --datadir miner account new
+mkdir -p miner
+geth --datadir miner account new --password miner
 geth --datadir miner init genesis.json
+geth --identity miner --http --http.port 8000 --http.corsdomain "*" --datadir miner --port 30303 --nodiscover --http.api "eth,net,web3,personal,miner,admin" --networkid 1900 --nat "any"
 cd $CURDIR

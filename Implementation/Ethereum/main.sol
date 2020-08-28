@@ -2,10 +2,8 @@ pragma solidity ^0.6.0;
 
 import {SafeMath} from "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/math/SafeMath.sol";
 import {BytesLib} from "https://github.com/GNSPS/solidity-bytes-utils/blob/master/contracts/BytesLib.sol";
-// import {BTCUtils} from '@interlay/bitcoin-spv-sol/contracts/BTCUtils.sol';
-// import {ValidateSPV} from '@interlay/bitcoin-spv-sol/contracts/ValidateSPV.sol';
 
-// An implementation of FlyClient as a cross-chain relay. Note that this implementation assumes that FlyClient is deployed either as a hard or as a soft fork.
+
 contract FlyClient {
     using SafeMath for uint256;
     using BytesLib for bytes;
@@ -13,12 +11,28 @@ contract FlyClient {
     struct Commitment {
         uint64 chainLength;
         bytes32 mmrRoot;
-        bytes32 headerHash;
-        bytes32 txId;
+        bool txExists;
     }
     
-    mapping(address => Commitment) commitments;
+    struct ChainState{
+        bytes32[] hashes;
+        uint64[] positions;
+    }
     
+    mapping(bytes32 => address[2]) proversPositions;
+    mapping(bytes32 => Commitment[2]) commitments;
+    mapping(bytes32 => ChainState[2]) chainsStates;
+    
+    function getPosition(bytes32 txId, address sender) public view returns (uint8) {
+        if (proversPositions[txId][0] == sender) {
+            return 0;
+        } else if (proversPositions[txId][0] == sender) {
+            return 1;
+        }
+        // Address not in array, return error code
+        return 2;
+    }
+
     
     function reverseEndianness(bytes memory toReverse) public pure returns (bytes memory) {
         bytes memory res = new bytes(toReverse.length);
@@ -101,6 +115,10 @@ contract FlyClient {
         
         return addedUpHashes.equal(abi.encodePacked(root));
     }
+    
+    function verifySubMmr(bytes32 mmrRoot, bytes memory mmrProof) public pure returns (bool) {
+        
+    }
 
     
     function verifySubmittedBlock(bytes memory toParse, bytes memory merkleProof, bytes memory mmrProof, bytes32 mmrRoot) public pure returns (bool) {
@@ -144,13 +162,19 @@ contract FlyClient {
             uint8(toParse[46]) == 0x4D && uint8(toParse[47]) == 0x4D && uint8(toParse[48]) == 0x52 && uint8(toParse[49]) == 0x28 && uint8(toParse[45 + uint8(toParse[41])]) == 0x29,
             "Pattern not found."
             );
-
-        return verifyProof(
+        
+        // Check that the block is included in the MMR
+        if (!verifyProof(
             doubleSha256(header),
             mmrRoot,
             mmrProof,
             uint8(toParse[43]) + 256 * uint8(toParse[44]) + (256 ** 2) * uint8(toParse[45])
-        );
+        )) {
+            return false;
+        }
+        
+        // Check that the MMR subtree is consistent with the MMR root
+        return verifySubMmr(mmrRoot, mmrProof);
     }
     
     function commitment(
@@ -162,6 +186,33 @@ contract FlyClient {
         uint64 chainLength,
         bytes memory lastHeader
     ) public {
+        
+    }
+    
+    function verify(bytes32 txId) public view returns (int8) {
+        uint8 position = getPosition(txId, msg.sender);
+        require(position != 2, "Caller hasn't committed their chain yet.");
+        
+        if (commitments[txId][1 - position].chainLength == 0) {
+            return -1;
+        }
+        
+        if (commitments[txId][0].txExists == commitments[txId][0].txExists) {
+            return 1;
+        }
+        
+        return 0;
+    }
+    
+    function getNext(bytes32 txId) public view returns (uint64) {
+        
+    }
+    
+    function getNextSecond(bytes32 txId, uint64 forkLength) public view returns (uint64[] memory) {
+        
+    }
+    
+    function submitBlock(bytes memory block, bytes memory mmrProof) public {
         
     }
 }

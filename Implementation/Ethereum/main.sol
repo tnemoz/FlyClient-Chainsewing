@@ -12,6 +12,7 @@ contract FlyClient {
         uint64 chainLength;
         bytes32 mmrRoot;
         bool txExists;
+        uint64 height;
     }
     
     struct ChainState{
@@ -116,77 +117,46 @@ contract FlyClient {
         return addedUpHashes.equal(abi.encodePacked(root));
     }
     
-    function verifySubMmr(bytes32 mmrRoot, bytes memory mmrProof) public pure returns (bool) {
-        
-    }
-
-    
-    function verifySubmittedBlock(bytes memory toParse, bytes memory merkleProof, bytes memory mmrProof, bytes32 mmrRoot) public pure returns (bool) {
-        require(toParse.length >= 80, "Block hash too short to contain a header.");
-        bytes memory header = toParse.slice(0, 80);
-        
-        // Verifies Block header (PoW, ...)
-        if (!verifyBlockHeader(header)) {
-            return false;
-        }
-        
-        bytes memory generationTransaction;
-        
-        if (toParse[80] < 0xFD) {
-            generationTransaction = toParse.slice(81, toParse.length - 81);
-        } else if (toParse[80] == 0xFD) {
-            require(toParse.length >= 83, "Block hash too short to contain the transactions number CompactSize with first byte 0xFD.");
-            generationTransaction = toParse.slice(83, toParse.length - 83);
-        } else if (toParse[80] == 0xFE) {
-            require(toParse.length >= 85, "Block hash too short to contain the transactions number CompactSize with first byte 0xFE.");
-            generationTransaction = toParse.slice(85, toParse.length - 85);
-        } else {
-            require(toParse.length >= 89, "Block hash too short to contain the transactions number CompactSize with first byte 0xFF.");
-            generationTransaction = toParse.slice(89, toParse.length - 89);
-        }
-        
-        // TODO: do we need to check for the validity of the outputs (ie do we have to check signatures)?
-        // Check that the generation transaction is included within the block
-        if (!verifyProof(doubleSha256(generationTransaction), reverseEndianness(header.slice(36, 32)).toBytes32(0), merkleProof, 0)) {
-            return false;
-        }
-        
-        require(generationTransaction.length >= 42, "Raw transaction too short: less than 42 bytes.");
-        require(toParse[41] <= 0x64, "The generation transaction CompactSize script bytes can't be larger than 100");
-        require(toParse.length >= 46 + uint8(toParse[41]), "Raw transaction too short: can't contain the coinbase script.");
-
-        // Must be at least 32 bytes long + pattern
-        require(uint8(toParse[41]) >= 37, "ScriptBytes too short to contain the MMR root and the pattern.");
-        // MMR root must be included under the form "MMR(mmrRoot)", with "MMR(" and ")" being in ASCII, and mmrRoot being the mmrRoot in bytes in BE
-        require(
-            uint8(toParse[46]) == 0x4D && uint8(toParse[47]) == 0x4D && uint8(toParse[48]) == 0x52 && uint8(toParse[49]) == 0x28 && uint8(toParse[45 + uint8(toParse[41])]) == 0x29,
-            "Pattern not found."
-            );
-        
-        // Check that the block is included in the MMR
-        if (!verifyProof(
-            doubleSha256(header),
-            mmrRoot,
-            mmrProof,
-            uint8(toParse[43]) + 256 * uint8(toParse[44]) + (256 ** 2) * uint8(toParse[45])
-        )) {
-            return false;
-        }
-        
-        // Check that the MMR subtree is consistent with the MMR root
-        return verifySubMmr(mmrRoot, mmrProof);
+    function verifySubmittedBlock(bytes memory header, uint64 height, bytes memory mmrProof, bytes32 mmrRoot) public pure returns (bool) {
+        require(header.length == 80, "Block header size different from 80 bytes.");
+        return verifyBlockHeader(header) && verifyProof(doubleSha256(header), mmrRoot, mmrProof, height);
     }
     
     function commitment(
         bytes memory containsTx,
+        uint64 height,
         bytes32 txId,
-        bytes memory merkleProofTx,
-        bytes memory merkleProofCoinbase,
+        bytes memory merkleProof,
+        uint64 indexTx,
         bytes memory mmrProof,
         uint64 chainLength,
-        bytes memory lastHeader
+        bytes32 mmrRoot
     ) public {
+        require(containsTx.length == 80, "Block header with size different from 80 bytes.");
+        if (merkleProof.length > 0) {
+            require(
+                verifyProof(txId, reverseEndianness(containsTx.slice(36, 32)).toBytes32(0), merkleProof, indexTx),
+                "Couldn't verify the inclusion of the transaction within the block."
+            );
+        }
+        bytes32 headerHash = doubleSha256(containsTx);
+        require(
+            verifyProof(headerHash, mmrRoot, mmrProof, height),
+            "Couldn't verify the inclusion of the block within the chain."
+        );
         
+        Commitment[2] storage commit = commitments[txId];
+        address[2] storage provers = proversPositions[txId];
+        ChainState[2] storage states = chainsStates[txId];
+        // If hasn't commited yet or has commited and been assigned index 0, index=0. Otherwise, index=1
+        uint8 index = getPosition(txId, msg.sender) % 2;
+        provers[index] = msg.sender;
+        commit[index].chainLength = chainLength;
+        commit[index].mmrRoot = mmrRoot;
+        commit[index].txExists = merkleProof.length > 0;
+        commit[index].height = height;
+        states[index].hashes.push(headerHash);
+        states[index].positions.push(height);
     }
     
     function verify(bytes32 txId) public view returns (int8) {
@@ -197,7 +167,7 @@ contract FlyClient {
             return -1;
         }
         
-        if (commitments[txId][0].txExists == commitments[txId][0].txExists) {
+        if (commitments[txId][0].txExists == commitments[txId][1].txExists) {
             return 1;
         }
         
@@ -205,14 +175,17 @@ contract FlyClient {
     }
     
     function getNext(bytes32 txId) public view returns (uint64) {
-        
+        uint8 position = getPosition(txId, msg.sender);
+        require(position != 2, "Caller hasn't committed their chain yet.");
     }
     
     function getNextSecond(bytes32 txId, uint64 forkLength) public view returns (uint64[] memory) {
-        
+        uint8 position = getPosition(txId, msg.sender);
+        require(position != 2, "Caller hasn't committed their chain yet.");
     }
     
-    function submitBlock(bytes memory block, bytes memory mmrProof) public {
-        
+    function submitBlock(bytes32 txId, bytes memory header, bytes memory mmrProof) public view {
+        uint8 position = getPosition(txId, msg.sender);
+        require(position != 2, "Caller hasn't committed their chain yet.");
     }
 }

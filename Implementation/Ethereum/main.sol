@@ -1,7 +1,7 @@
 pragma solidity ^0.6.0;
 
-import {SafeMath} from "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/math/SafeMath.sol";
-import {BytesLib} from "https://github.com/GNSPS/solidity-bytes-utils/blob/master/contracts/BytesLib.sol";
+import {SafeMath} from "./SafeMath.sol";
+import {BytesLib} from "./BytesLib.sol";
 
 /// @title An implementation of FlyClient as a chain-relay resistant to chain-sewing attacks.
 /// @author Tristan NEMOZ
@@ -172,20 +172,26 @@ contract FlyClient {
     }
     
     /// @author Tristan NEMOZ
-    /// @notice Verify a Merkle/MMR proof.
-    /// @param id The hash whose inclusion is to be verified.
-    /// @param root The root of the Merkle Tree/MMR.
-    /// @param proof The path along the Merkle Tree/MMR to prove the inclusion.
-    /// @param index The index of the hash to be verified within the Merkle Tree/MMR.
+    /// @notice Verify a Merkle proof.
+    /// @param txId The hash whose inclusion is to be verified.
+    /// @param root The root of the Merkle Tree.
+    /// @param proof The path along the Merkle Tree to prove the inclusion.
+    /// @param index The index of the hash to be verified within the Merkle Tree.
     /// @return A boolean indicating whether the proof is valid.
-    function verifyProof(bytes32 id, bytes32 root, bytes memory proof, uint64 index) private pure returns (bool) {
+    function verifyMerkleProof(bytes32 txId, bytes32 root, bytes memory proof, uint64 index) public pure returns (bool) {
         require(proof.length % 32 == 0, "The proof must be a concatenation of 32 bytes-long hashes.");
+        
+        if (proof.length == 0) {
+            return txId == root;
+        }
+        
         bytes memory addedUpHashes;
+        index -= 1;
         
         if (index % 2 == 0) {
-            addedUpHashes = abi.encodePacked(sha256(proof.slice(0, 32).concat(abi.encodePacked(id))));
+            addedUpHashes = abi.encodePacked(sha256(abi.encodePacked(txId).concat(proof.slice(0, 32))));
         } else {
-            addedUpHashes = abi.encodePacked(sha256(abi.encodePacked(id).concat(proof.slice(0, 32))));
+            addedUpHashes = abi.encodePacked(sha256(proof.slice(0, 32).concat(abi.encodePacked(txId))));
         }
         
         uint8 sliceBeginning = 32;
@@ -193,9 +199,46 @@ contract FlyClient {
         
         while (sliceBeginning < proof.length) {
             if (index % 2 == 0) {
-                addedUpHashes = abi.encodePacked(sha256(proof.slice(sliceBeginning, 32).concat(addedUpHashes)));
-            } else {
                 addedUpHashes = abi.encodePacked(sha256(addedUpHashes.concat(proof.slice(sliceBeginning, 32))));
+            } else {
+                addedUpHashes = abi.encodePacked(sha256(proof.slice(sliceBeginning, 32).concat(addedUpHashes)));
+            }
+            sliceBeginning += 32;
+            index /= 2;
+        }
+        
+        return addedUpHashes.equal(abi.encodePacked(root));
+    }
+    
+    /// @author Tristan NEMOZ
+    /// @notice Verify a MMR proof.
+    /// @param id The hash whose inclusion is to be verified.
+    /// @param root The root of the MMR.
+    /// @param proof The path along the MMR to prove the inclusion.
+    /// @param index The index of the hash to be verified within the MMR.
+    /// @param leavesNumber Number of leaves in the MMR.
+    /// @return A boolean indicating whether the proof is valid.
+    function verifyMmrProof(bytes32 id, bytes32 root, bytes memory proof, uint64 index, uint64 leavesNumber) private pure returns (bool) {
+        require(proof.length % 32 == 0, "The proof must be a concatenation of 32 bytes-long hashes.");
+        bytes memory addedUpHashes;
+        index -= 1;
+        uint64 n = leavesNumber - 1;
+        
+        if ((index % 2 == 0) && index + 1 <= leavesNumber) {
+            addedUpHashes = abi.encodePacked(sha256(abi.encodePacked(id).concat(proof.slice(0, 32))));
+        } else {
+            addedUpHashes = abi.encodePacked(sha256(proof.slice(0, 32).concat(abi.encodePacked(id))));
+        }
+        
+        uint8 sliceBeginning = 32;
+        index /= 2;
+        n /= 2;
+        
+        while (sliceBeginning < proof.length) {
+            if ((index % 2 == 0) && (index + 1 <= n)) {
+                addedUpHashes = abi.encodePacked(sha256(addedUpHashes.concat(proof.slice(sliceBeginning, 32))));
+            } else {
+                addedUpHashes = abi.encodePacked(sha256(proof.slice(sliceBeginning, 32).concat(addedUpHashes)));
             }
             sliceBeginning += 32;
             index /= 2;
@@ -210,8 +253,8 @@ contract FlyClient {
     /// @param height The height of the block within the Bitcoin chain.
     /// @param mmrProof The MMR proof of inclusion of the block within the Bitcoin chain.
     /// @param mmrRoot The MMR root associated with the Bitcoin chain.
-    function verifySubmittedBlock(bytes memory header, uint64 height, bytes memory mmrProof, bytes32 mmrRoot) private pure headerIs80BytesLong(header) returns (bool) {
-        return verifyBlockHeader(header) && verifyProof(doubleSha256(header), mmrRoot, mmrProof, height);
+    function verifySubmittedBlock(bytes memory header, uint64 height, bytes memory mmrProof, bytes32 mmrRoot, uint64 chainLength) private pure headerIs80BytesLong(header) returns (bool) {
+        return verifyBlockHeader(header) && verifyMmrProof(doubleSha256(header), mmrRoot, mmrProof, height, chainLength);
     }
     
     /// @author Tristan NEMOZ
@@ -229,9 +272,9 @@ contract FlyClient {
     /// @param txId The hash of the transaction to be verified.
     /// @param merkleProof The Merkle Proof of inclusion of the transaction within the submitted block header.
     /// If the prover thinks that this transaction is not included in the block at the requested height, this parameter
-    /// would be empty.
+    /// is ignored.
     /// @param indexTx The index if the transaction within the block that contains it. If the prover thinks that
-    /// the transaction isn't included in the block at the requested height, this parameter is ignored.
+    /// the transaction isn't included in the block at the requested height, they have to pass 0 to this parameter.
     /// @param mmrProof The MMR proof of inclusion of the submitted block header within the Bitcoin blockchain.
     /// @param chainLength The length of the Bitcoin chain according to the prover. It has to be consistent with the
     /// provided MMR root.
@@ -249,17 +292,15 @@ contract FlyClient {
     ) public {
         require(containsTx.length == 80, "Block header with size different from 80 bytes.");
         require(!hasResultBeenSet[txId], "A result already has been determined for this transaction.");
-        // A merkle proof with nil size indicated that the prover thinks the transaction isn't included within the block.
-        // Hence there is no point in checking the proof (since there couldn't possibly be a proof).
-        if (merkleProof.length > 0) {
+        if (indexTx > 0) {
             require(
-                verifyProof(txId, reverseEndianness(containsTx.slice(36, 32)).toBytes32(0), merkleProof, indexTx),
+                verifyMerkleProof(txId, reverseEndianness(containsTx.slice(36, 32)).toBytes32(0), merkleProof, indexTx),
                 "Couldn't verify the inclusion of the transaction within the block."
             );
         }
         bytes32 headerHash = doubleSha256(containsTx);
         require(
-            verifyProof(headerHash, mmrRoot, mmrProof, height),
+            verifyMmrProof(headerHash, mmrRoot, mmrProof, height, chainLength),
             "Couldn't verify the inclusion of the block within the chain."
         );
         
@@ -287,7 +328,7 @@ contract FlyClient {
         // Create the commit associated to this prover
         commit.chainLength = chainLength;
         commit.mmrRoot = mmrRoot;
-        commit.txExists = merkleProof.length > 0;
+        commit.txExists = indexTx > 0;
         commit.height = height;
         
         // Adding the provided block as a sampled one
@@ -581,7 +622,8 @@ contract FlyClient {
             header,
             height,
             mmrProof,
-            commitments[txId][position].mmrRoot
+            commitments[txId][position].mmrRoot,
+            commitments[txId][position].chainLength
         );
         bytes32 headerHash = doubleSha256(header);
         bytes32 previousHash = extractPreviousBlockHash(header);

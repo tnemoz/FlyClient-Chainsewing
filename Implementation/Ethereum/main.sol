@@ -14,7 +14,8 @@ contract FlyClient {
     using BytesLib for bytes;
     
     uint8 public constant MAX_SAMPLING_SIZE = 16;
-    
+    event GetNext(int72 next);
+
     modifier headerIs80BytesLong(bytes memory header) {
         require(header.length == 80, "Block header size different from 80 bytes.");
         _;
@@ -70,6 +71,16 @@ contract FlyClient {
     // Saves whether the getNextSecond function has been called once
     mapping(bytes32 => bool) hasGetNextSecondBeenCalled;
     
+    function getLastPosition(bytes32 txId) public view returns (uint64) {
+	return positions[txId][positions[txId].length - 1];
+    }
+
+    function getTotalProvidedBlocks(bytes32 txId) public view returns (uint256) {
+	uint8 position = getPosition(txId, msg.sender);
+	require(position != 2, "Hasn't committed yet.");
+        return chainsStates[txId][position].hashes.length;
+    }
+
     /// @author Tristan NEMOZ
     /// @notice Returns the index associated to a certain address. This index is used as an identifier to avoid
     /// using a mapping of bytes 32 to a mapping of address.
@@ -179,7 +190,7 @@ contract FlyClient {
     /// @param index The index of the hash to be verified within the Merkle Tree.
     /// @return A boolean indicating whether the proof is valid.
     function verifyMerkleProof(bytes32 txId, bytes32 root, bytes memory proof, uint64 index) public pure returns (bool) {
-        require(proof.length % 32 == 0, "The proof must be a concatenation of 32 bytes-long hashes.");
+	require(proof.length % 32 == 0, "The proof must be a concatenation of 32 bytes-long hashes.");
         
         if (proof.length == 0) {
             return txId == root;
@@ -189,9 +200,9 @@ contract FlyClient {
         index -= 1;
         
         if (index % 2 == 0) {
-            addedUpHashes = abi.encodePacked(sha256(abi.encodePacked(txId).concat(proof.slice(0, 32))));
+            addedUpHashes = abi.encodePacked(doubleSha256(abi.encodePacked(txId).concat(proof.slice(0, 32))));
         } else {
-            addedUpHashes = abi.encodePacked(sha256(proof.slice(0, 32).concat(abi.encodePacked(txId))));
+            addedUpHashes = abi.encodePacked(doubleSha256(proof.slice(0, 32).concat(abi.encodePacked(txId))));
         }
         
         uint8 sliceBeginning = 32;
@@ -199,9 +210,9 @@ contract FlyClient {
         
         while (sliceBeginning < proof.length) {
             if (index % 2 == 0) {
-                addedUpHashes = abi.encodePacked(sha256(addedUpHashes.concat(proof.slice(sliceBeginning, 32))));
+                addedUpHashes = abi.encodePacked(doubleSha256(addedUpHashes.concat(proof.slice(sliceBeginning, 32))));
             } else {
-                addedUpHashes = abi.encodePacked(sha256(proof.slice(sliceBeginning, 32).concat(addedUpHashes)));
+                addedUpHashes = abi.encodePacked(doubleSha256(proof.slice(sliceBeginning, 32).concat(addedUpHashes)));
             }
             sliceBeginning += 32;
             index /= 2;
@@ -224,26 +235,31 @@ contract FlyClient {
         index -= 1;
         uint64 n = leavesNumber - 1;
         
+	if (proof.length == 0) {
+	    return id == root;
+	}
+	
         if ((index % 2 == 0) && index + 1 <= leavesNumber) {
-            addedUpHashes = abi.encodePacked(sha256(abi.encodePacked(id).concat(proof.slice(0, 32))));
+            addedUpHashes = abi.encodePacked(doubleSha256(abi.encodePacked(id).concat(proof.slice(0, 32))));
         } else {
-            addedUpHashes = abi.encodePacked(sha256(proof.slice(0, 32).concat(abi.encodePacked(id))));
+            addedUpHashes = abi.encodePacked(doubleSha256(proof.slice(0, 32).concat(abi.encodePacked(id))));
         }
         
-        uint8 sliceBeginning = 32;
+        uint64 sliceBeginning = 32;
         index /= 2;
         n /= 2;
         
-        while (sliceBeginning < proof.length) {
+	while (sliceBeginning < proof.length) {
             if ((index % 2 == 0) && (index + 1 <= n)) {
-                addedUpHashes = abi.encodePacked(sha256(addedUpHashes.concat(proof.slice(sliceBeginning, 32))));
+                addedUpHashes = abi.encodePacked(doubleSha256(addedUpHashes.concat(proof.slice(sliceBeginning, 32))));
             } else {
-                addedUpHashes = abi.encodePacked(sha256(proof.slice(sliceBeginning, 32).concat(addedUpHashes)));
+                addedUpHashes = abi.encodePacked(doubleSha256(proof.slice(sliceBeginning, 32).concat(addedUpHashes)));
             }
             sliceBeginning += 32;
             index /= 2;
+	    n /= 2;
         }
-        
+
         return addedUpHashes.equal(abi.encodePacked(root));
     }
     
@@ -299,12 +315,12 @@ contract FlyClient {
             );
         }
         bytes32 headerHash = doubleSha256(containsTx);
-        require(
+	require(
             verifyMmrProof(headerHash, mmrRoot, mmrProof, height, chainLength),
             "Couldn't verify the inclusion of the block within the chain."
         );
         
-        uint8 index = getPosition(txId, msg.sender);
+	uint8 index = getPosition(txId, msg.sender);
         // Ensuring a prover can't change their commit.
         require(index == 2, "This address already committed their chain.");
         require(
@@ -319,7 +335,7 @@ contract FlyClient {
         } else {
             index = 1;
         }
-        
+	
         Commitment storage commit = commitments[txId][index];
         ChainState storage state = chainsStates[txId][index];
         // Saving index of the current user
@@ -384,13 +400,15 @@ contract FlyClient {
     /// -3 if a proof that the other prover submitted was invalid, -4 if the prover must call the getNextSecond function.
     function getNext(bytes32 txId) public returns (int72) {
         require(!hasResultBeenSet[txId], "A result already has been determined for this transaction.");
-        uint8 position = getPosition(txId, msg.sender);
+	uint8 position = getPosition(txId, msg.sender);
         require(position != 2, "Caller hasn't committed their chain yet.");
         ChainState storage state = chainsStates[txId][position];
         
         // If the prover hasn't submitted all their proofs, return the first block that they must provide.
         if (state.hashes.length < positions[txId].length) {
-            return int72(positions[txId][state.hashes.length]);
+	    int72 next = int72(positions[txId][state.hashes.length]);
+	    emit GetNext(next);
+            return next;
         }
         
         // If at least one proof was invalid
@@ -398,6 +416,7 @@ contract FlyClient {
             hasResultBeenSet[txId] = true;
             result[txId] = commitments[txId][1 - position].txExists;
             cleanup(txId);
+	    emit GetNext(-2);
             return -2;
         }
         
@@ -406,10 +425,12 @@ contract FlyClient {
             hasResultBeenSet[txId] = true;
             result[txId] = commitments[txId][position].txExists;
             cleanup(txId);
+	    emit GetNext(-3);
             return -3;
         }
         
         if (chainsStates[txId][1 - position].hashes.length < positions[txId].length) {
+	    emit GetNext(-1);
             return -1;
         }
         
@@ -483,15 +504,18 @@ contract FlyClient {
             }
 
             positions[txId].push(newPosition);
+	    emit GetNext(int72(newPosition));
             return int72(newPosition);
         } else if (hasGetNextSecondBeenCalled[txId]) {
             // No fake blocks found, but sampling is over. The protocol has to be done once again
             hasResultBeenSet[txId] = true;
             cleanup(txId);
             hasResultBeenSet[txId] = false;
+	    emit GetNext(-5);
             return -5;
         } else {
             hasForkingBeenFound[txId] = true;
+	    emit GetNext(-4);
             return -4;
         }
     }
@@ -640,7 +664,7 @@ contract FlyClient {
         
         ChainState storage state = chainsStates[txId][position];
         state.hashes.push(headerHash);
-        state.hashes.push(previousHash);
+        state.previousHashes.push(previousHash);
         
         // Ensuring that one non-valid proof stays non-valid after submitting other blocks.
         previousProofsValid[txId][position] = isBlockValid && previousProofsValid[txId][position];

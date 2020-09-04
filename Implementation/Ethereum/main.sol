@@ -70,16 +70,6 @@ contract FlyClient {
     
     // Saves whether the getNextSecond function has been called once
     mapping(bytes32 => bool) hasGetNextSecondBeenCalled;
-    
-    function getLastPosition(bytes32 txId) public view returns (uint64) {
-	return positions[txId][positions[txId].length - 1];
-    }
-
-    function getTotalProvidedBlocks(bytes32 txId) public view returns (uint256) {
-	uint8 position = getPosition(txId, msg.sender);
-	require(position != 2, "Hasn't committed yet.");
-        return chainsStates[txId][position].hashes.length;
-    }
 
     /// @author Tristan NEMOZ
     /// @notice Returns the index associated to a certain address. This index is used as an identifier to avoid
@@ -121,7 +111,6 @@ contract FlyClient {
         return reverseEndianness(abi.encodePacked(sha256(abi.encodePacked(sha256(toHash))))).toBytes32(0);
     }
     
-    
     // TODO: We probably want the function to be external rather than public and the data location to be calldata rather than memory
     /// @author Tristan NEMOZ
     /// @notice Checks that a given block header has a valid PoW
@@ -129,7 +118,7 @@ contract FlyClient {
     /// regarding to other issues of the Bitcoin protocol, such as the version number?
     /// @param header The header of the block to be verified.
     /// @return A boolean indicating whether the block header was valid.
-    function verifyBlockHeader(bytes memory header) private pure returns (bool) {
+    function verifyBlockHeader(bytes memory header) public pure returns (bool) {
         assert(header.length == 80);
         bytes32 blockHeaderHash = doubleSha256(header);
         
@@ -138,14 +127,14 @@ contract FlyClient {
         uint pow;
         
         for (uint i = 0; i < blockHeaderHash.length; i++) {
-            pow = pow.add(uint(uint8(blockHeaderHash[i])).mul(256 ** i));
+            pow = pow.add(uint(uint8(blockHeaderHash[31 - i])).mul(256 ** i));
         }
         
         // TODO: Use toUint32 function from ByteLib for a more efficient computation
         uint target;
         
-        for (uint i = 72; i == 74; i++) {
-            target = target.add(uint(uint8(header[i])).mul(256 * (i - 72)));
+        for (uint i = 72; i <= 74; i++) {
+            target = target.add(uint(uint8(header[i])).mul(256 ** (i - 72)));
         }
         
         target = target.mul(256 ** (uint(uint8(header[75])).sub(3)));
@@ -270,14 +259,14 @@ contract FlyClient {
     /// @param mmrProof The MMR proof of inclusion of the block within the Bitcoin chain.
     /// @param mmrRoot The MMR root associated with the Bitcoin chain.
     function verifySubmittedBlock(bytes memory header, uint64 height, bytes memory mmrProof, bytes32 mmrRoot, uint64 chainLength) private pure headerIs80BytesLong(header) returns (bool) {
-        return verifyBlockHeader(header) && verifyMmrProof(doubleSha256(header), mmrRoot, mmrProof, height, chainLength);
+	return verifyBlockHeader(header) && verifyMmrProof(doubleSha256(header), mmrRoot, mmrProof, height, chainLength);
     }
     
     /// @author Tristan NEMOZ
     /// @notice Extracts the previous block header hash in correct endianness from a block header.
     /// @param header The block header whose previous block header hash must be extracted.
     /// @return The previous block header hash with correct endianness.
-    function extractPreviousBlockHash(bytes memory header) private pure returns (bytes32) {
+    function extractPreviousBlockHash(bytes memory header) public pure returns (bytes32) {
         return reverseEndianness(header.slice(4, 32)).toBytes32(0);
     }
     
@@ -350,11 +339,17 @@ contract FlyClient {
         // Adding the provided block as a sampled one
         state.hashes.push(headerHash);
         state.previousHashes.push(extractPreviousBlockHash(containsTx));
-        positions[txId].push(height);
+
+        if (positions[txId].length == 0) {
+	    positions[txId].push(height);
+	}
 
         // Adding the next block to be sampled
         uint64 newPosition = height + ((chainLength - height + 1) / 2);
-        positions[txId].push(newPosition);
+
+        if (positions[txId].length == 1) {
+	    positions[txId].push(newPosition);
+	}
 
         previousProofsValid[txId][index] = true;
     }
@@ -390,7 +385,7 @@ contract FlyClient {
         require(hasResultBeenSet[txId], "No result found for this transaction.");
         return result[txId];
     }
-    
+
     /// @author Tristan NEMOZ
     /// @notice Provide the prover with the next block to provide the client with. It also indicates whether the protocol
     /// is over because a submitted proof was invalid or if the prover must call the getNextSecond function to proceed with
@@ -407,7 +402,7 @@ contract FlyClient {
         // If the prover hasn't submitted all their proofs, return the first block that they must provide.
         if (state.hashes.length < positions[txId].length) {
 	    int72 next = int72(positions[txId][state.hashes.length]);
-	    emit GetNext(next);
+	        emit GetNext(next);
             return next;
         }
         
@@ -416,7 +411,7 @@ contract FlyClient {
             hasResultBeenSet[txId] = true;
             result[txId] = commitments[txId][1 - position].txExists;
             cleanup(txId);
-	    emit GetNext(-2);
+	        emit GetNext(-2);
             return -2;
         }
         
@@ -425,12 +420,12 @@ contract FlyClient {
             hasResultBeenSet[txId] = true;
             result[txId] = commitments[txId][position].txExists;
             cleanup(txId);
-	    emit GetNext(-3);
+    	    emit GetNext(-3);
             return -3;
         }
         
         if (chainsStates[txId][1 - position].hashes.length < positions[txId].length) {
-	    emit GetNext(-1);
+	        emit GetNext(-1);
             return -1;
         }
         
@@ -452,7 +447,7 @@ contract FlyClient {
             step = (commonChainLength - commit.height + 1) >> positions[txId].length;
         // If the merging block has not been found, we're looking for the forking block
         } else {
-            step = commit.height >> (positions[txId].length - firstSamplingSize[txId]);
+            step = commit.height >> (1 + positions[txId].length - firstSamplingSize[txId]);
         }
         
         // During the Binary Search, both the last step and the one before can have a step of 1
@@ -501,22 +496,23 @@ contract FlyClient {
             // We have to start looking for the forking block
             if (hasAlreadyBeenSampled) {
                 newPosition = commit.height - (commit.height / 2);
+		        firstSamplingSize[txId] = uint64(positions[txId].length);
             }
 
             positions[txId].push(newPosition);
-	    emit GetNext(int72(newPosition));
+	        emit GetNext(int72(newPosition));
             return int72(newPosition);
         } else if (hasGetNextSecondBeenCalled[txId]) {
             // No fake blocks found, but sampling is over. The protocol has to be done once again
             hasResultBeenSet[txId] = true;
             cleanup(txId);
             hasResultBeenSet[txId] = false;
-	    emit GetNext(-5);
-            return -5;
+	        emit GetNext(-4);
+            return -4;
         } else {
             hasForkingBeenFound[txId] = true;
-	    emit GetNext(-4);
-            return -4;
+	        getNextSecond(txId);
+            return getNext(txId);
         }
     }
     
@@ -524,9 +520,8 @@ contract FlyClient {
     /// @notice Provide the prover with the blocks indexes that they must submit to the client to prove their fork is
     /// the main one.
     /// @param txId The hash of the transaction we're currently working with.
-    /// @return The blocks indexes that the provers must provide the client with.
     /// @dev There's a probably more efficient way to sample uniformly.
-    function getNextSecond(bytes32 txId) public noResultSet(txId) returns (uint64[] memory) {
+    function getNextSecond(bytes32 txId) public noResultSet(txId) {
         require(hasForkingBeenFound[txId], "Forking block hasn't been found yet.");
         hasGetNextSecondBeenCalled[txId] = true;
         uint64 forkingHeight = findForkingHeight(txId);
@@ -544,7 +539,7 @@ contract FlyClient {
             for (uint64 i = forkingHeight + 1; i < commonChainLength; i++) {
                 sampled[i - forkingHeight - 1] = i;
             }
-            return sampled;
+            return;
         }
         
         bytes32 previousEthereumBlockHash = blockhash(block.number - 1);
@@ -571,8 +566,6 @@ contract FlyClient {
             possibleSampled[sample] = possibleSampled[possibleSampled.length - 1];
             delete possibleSampled[possibleSampled.length - 1];
         }
-        
-        return sampled;
     }
     
     /// @author Tristan NEMOZ
@@ -655,10 +648,8 @@ contract FlyClient {
         for (uint i = 0; i < positions[txId].length; i++) {
             if (positions[txId][i] == height - 1) {
                 isBlockValid = isBlockValid && chainsStates[txId][position].hashes[i] == extractPreviousBlockHash(header);
-                break;
             } else if (positions[txId][i] == height + 1) {
                 isBlockValid = isBlockValid && headerHash == chainsStates[txId][position].previousHashes[i];
-                break;
             }
         }
         

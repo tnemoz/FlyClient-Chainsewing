@@ -3,7 +3,8 @@ import os
 import solcx
 from web3 import HTTPProvider, Web3
 
-from create_chains import honest_hashes, adversary_hashes, adversary_headers, honest_headers, adversary_blocks
+from create_opened_fork_chains import honest_hashes, adversary_hashes, adversary_headers, honest_headers, adversary_blocks
+#from create_closed_fork_chains import honest_hashes, adversary_hashes, adversary_headers, honest_headers, adversary_blocks
 from mmr import bitcoin_hash, Mmr
 
 class Node:
@@ -24,10 +25,11 @@ class Node:
         contract.functions.commitment(containsTx, height, txId, merkleProof, indexTx, mmrProof, chainLength, mmrRoot).transact({'from' : self.account})
         print("[TX {txId.hex()}][+] Account {self.account} has finished to commit their chain.")
 
-    def submit_block(self, height, txId):
-        print(f"[TX {txId.hex()}][*] Account {self.account} is submitting block at height {height}...")
-        contract.functions.submitBlock(txId, self.headers[height - 1], bytes.fromhex(self.mmr.get_path(height))).transact({"from": self.account})
-        print(f"[TX {txId.hex()}][+] Account {self.account} has submitted block at height {height}")
+    def submit_block(self, txId):
+        assert self.next > 0, "Last return was a return code."
+        print(f"[TX {txId.hex()}][*] Account {self.account} is submitting block at height {self.next}...")
+        contract.functions.submitBlock(txId, self.headers[self.next - 1], bytes.fromhex(self.mmr.get_path(self.next))).transact({"from": self.account})
+        print(f"[TX {txId.hex()}][+] Account {self.account} has submitted block at height {self.next}")
 
     def get_next(self, txId):
         print(f"[TX {txId.hex()}][*] Account {self.account} querying next block to sample...")
@@ -35,7 +37,7 @@ class Node:
         # Easy to convert if positive number
         print("Received data:", receipt["logs"][0]['data'])
         data = int(receipt['logs'][0]['data'], 16)
-        self.next = data if data < pow(2, 255) else pow(2, 256) - data
+        self.next = data if data < pow(2, 255) else data - pow(2, 256)
 
         if self.next == -2:
             print(f"[TX {txId.hex()}][-] Protocol is over for account {self.account}. One of the submitted proof was wrong.")

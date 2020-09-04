@@ -1,14 +1,16 @@
     \section{\CS\ attacks}
-      A personal correspondence with Andrianna Polydouri and Dionysis Zindros showed that the Superblock protocol is prone to be attacked with what is called a \cs\ attack. Such an attack is applicable when the new protocol is deployed as a velvet fork.
+      A personal correspondence with Andrianna Polydouri and Dionysis Zindros showed that the Superblock NiPoPows protocol is prone to be attacked with what is called a \cs\ attack. Such an attack is applicable when the new protocol is deployed as a velvet fork.
       
-      The idea is that the adversary can put arbitrary data in the interlink field. Hence, they can put interlink data that is invalid for honest miners but that may be considered valid by the verifier. Such an attack on \FC\ is described in \autoref{section:attack}.
+      \paragraph{Attacking a protocol deployed as a velvet fork.} The idea is that an adversary can put arbitrary data in the interlink field. When \FC\ is deployed on a traditional fork, the MMR root's validity present in the block header is enforced by the consensus: it is not possible for an adversary to lie on the MMR root, otherwise their block won't be accepted. This is not true on a velvet fork. Indeed, by definition, a block with an invalid interlink field will be considered by up-to-date nodes as a legacy block and as a normal block for non up-to-dates nodes.
+      
+      \paragraph{Principle of a \cs\ attack.} Since the interlink data is what is used to link blocks between them (the \FC\ original paper even claimed that the previous block reference in the block header could be replaced by the interlink field), it is possible for an adversary to have a fork, to include this fork in their MMR and to put the MMR root in a block they have mined. By doing so, from the client point of view, there is apparently no way to distinguish a forked block from a block on the main chain. Indeed, \FC\ heavily relies on the fact that an adversary cannot close their fork, that is that once the adversary begins to fork the main chain, they're forced to continue to mine on their fork to have the less fake blocks possible in it. Using this attack however, the adversary can mine a valid block on their fork, and then mine another block, this time on the main chain, which includes in its MMR this forked block. They can then continue to mine on the main chain. This forked block is then, from the client's point of view, as valid as any other block with a valid MMR proof of inclusion.
+      
+      \paragraph{What can be done with a \cs\ attack.} Furthermore, not only can an adversary perform a double-spent attack using the setup described above, but it can actually spend coins from fake UTXOs, effectively creating coins. Since \FC\ only samples block headers, it cannot check for the validity of a transaction. As a result, the adversary can create fake UTXOs in their forked block and spend from them. Even if \FC\ were to ask for the whole block, it is still possible for the adversary to create fake UTXOs in another forked block and spend from them. By design, \FC\ won't recursively follow every UTXO the adversary spends from. Hence, the client has no way to determine whether the block transactions are valid. This will be described in more details in \autoref{section:attack}.
     \section{Notations}
       \label{section:notations}
-      We may begin with describing the notations that we will use throughout our analysis. We consider a blockchain \gls{C} consisting in \gls{n} blocks. Amongst all nodes running this chain, a portion \gls{mu} of them are malicious and work for a single adversary. To put things differently, we assume the existence of an adversary such that the ratio between their computational power and the total computational power of the network is \gls{mu}. We use a Python-like indexing of the blockchain \gls{C}. That is, the genesis block is denoted \(\Cindex{0}\), the last block \(\Cindex{-1}\) or \(\Cindex{n-1}\) and we can represent the portion of the chain from block  \(i\) (inclusive) to block \(j\) (exclusive) with  \(\Crange{i}{j}\). We use the same notations for denoting blocks in the adversary's fork, at the exception that we append \('\) to their name, like \(\Cindex{i}'\) for instance.    
+      We may begin with describing the notations that we will use throughout our analysis. We consider a blockchain \(\mathsf{C}\) consisting in \(n\) blocks. Amongst all nodes running this chain, a portion \(\mu\) of them are malicious and work for a single adversary. To put things differently, we assume the existence of an adversary such that the ratio between their computational power and the total computational power of the network is \(\mu\). We use a Python-like indexing of the blockchain \(\mathsf{C}\). That is, the genesis block is denoted \(\Cindex{0}\), the last block \(\Cindex{-1}\) or \(\Cindex{n-1}\) and we can represent the portion of the chain from block  \(i\) (inclusive) to block \(j\) (exclusive) with  \(\Crange{i}{j}\). We use the same notations for denoting blocks in the adversary's fork, at the exception that we append \('\) to their name, like \(\Cindex{i}'\) for instance. Furthermore, as a recall, \FC\ will always sample the last \(\delta\) fraction of the blockchain's blocks.   
 
-      We work under the  \gls{cL}-assumption, as described in \cite{\FCCite}. Fundamentally, it bounds the adversary computational power: if the adversary owns a fork of length \(L\) such that their own chain is as long as the main chain, it is impossible that a larger fraction than \(c\) of these blocks are valid with respect to the protocol rules. As a recall, \FC\ will always sample the last \gls{delta} fraction of the blockchain's blocks. While we will use \gls{delta} in our analysis, it is important to keep in mind that \gls{delta} can be directly derived from the \gls{cL}-adversary assumption.    
-
-      Finally, two blocks are special regarding the \cs\ attack: what we call in the following the \emph{forking block} \gls{f} and the \emph{merging block} \gls{m}. Both these blocks are described in the next section.
+      Finally, two blocks are special regarding the \cs\ attack: what we call in the following the \emph{forking block} \(f\) and the \emph{merging block} \(m\). Both these blocks are described in the next section.
 
       \begin{table}[ht]
         \centering
@@ -28,8 +30,6 @@
           \hline
           Blocks \(i\) (inclusive) to  \(j\) (exclusive) of the chain &  \(\mathsf{C[}i\mathsf{:}j\mathsf{]}\)\\
           \hline
-          \((c,L)\)-adversary assumption &  \((c,L)\)\\
-          \hline
           Position of the forking block & \(f\)\\
           \hline
           Position of the merging block &  \(m\)\\
@@ -40,27 +40,26 @@
         \caption{Notations used throughout the analysis}
         \label{table:notations}
       \end{table} 
-    
-    \printglossary[type=notationschainsewing]
-      
-    \section{Principle of a \cs\ attacks on \FC}
+    \section[Principles of \cs\ attacks]{Principles of \cs\ attacks on \FC}
       \label{section:attack}
-      Let us place ourselves within the Bitcoin backbone protocol with variable difficulty. Let us assume that the \FC\ protocol was implemented on a velvet fork in this context. In particular, this means that:
+      Let us place ourselves within the Bitcoin backbone protocol with constant difficulty. Let us assume that the \FC\ protocol was implemented on a velvet fork in this context. In particular, this means that:
 
       \begin{itemize}
-        \item every block header contains a reference to the previous block in the chain, since it has to be valid according to the old protocol, be it a Proof of Work or a Proof of Stake;
-        \item it is possible for a prover to indicate a block as a legacy block. Otherwise, every miner who puts random data in the MMR root field will break the protocol as no proofs sampling this block would be accepted;
-        \item a block header can contain arbitrary data in the MMR root field;
-        \item if a legacy block is sampled, the prover must provide all its ancestors until the most recent upgraded block.
+        \item \textbf{every block header contains a reference to the previous block in the chain}, since it has to be valid according to the old protocol, be it a Proof of Work or a Proof of Stake;
+        \item \textbf{it is possible for a prover to indicate a block as a legacy block}. Otherwise, every miner who puts random data in the MMR root field will break the protocol as no proofs sampling this block would be accepted;
+        \item \textbf{a block header can contain arbitrary data in the MMR root field};
+        \item \textbf{if a legacy block is sampled, the prover must provide all its children until the most recent upgraded block}.
       \end{itemize}
       
-      Let us assume that at a block \(f\) of the main chain \(\mathsf{C}\), which we will call the \textit{forking block} from now on, the adversary creates a fork. In the mean time, both the honest miners and potentially the adversary continue to mine on top of the main chain. In order to do so, the adversary splits its computational power so that they mine on top of the fork with a portion \(\beta\) of its computational power and uses the remaining to mine on top of the main chain. The adversary will behave according to the \FC\ protocol on both the fork and the main chain. Honest miners will continue to behave accordingly to the \FC\ protocol. The situation is represented on \autoref{figure:chainsewingattempt}. In this figure:
+      \subsection{Setting up a \cs\ attack against \FC}
+      
+      Let us assume that at a block \(f\) of the main chain \(\mathsf{C}\), which we will call the \textit{forking block} from now on, the adversary creates a fork and behaves accordingly to the \FC\ protocol. Honest miners will also continue to behave accordingly to the \FC\ protocol on the main chain. The situation is represented on \autoref{figure:chainsewingattempt}. In this figure:
       
       \begin{itemize}
-        \item black blocks are mined by the adversary and contain a MMR root;
-        \item dashed arrows correspond to MMR link if it is different from the previous block header hash reference;
-        \item snake arrows represents a portion of blocks, be they mined by the adversary or by a honest miner;
-        \item every block is valid according to the old protocol rules.
+        \item \textbf{black blocks are mined by the adversary} and contain a MMR root;
+        \item \textbf{dashed arrows correspond to MMR link} if it is different from the previous block header hash reference;
+        \item \textbf{snake arrows represents a portion of blocks}, be they mined by the adversary or by a honest miner;
+        \item \textbf{every block is valid according to the old protocol rules}.
       \end{itemize}
     
       \begin{figure}[ht]
@@ -95,49 +94,40 @@
             \path[draw, decorate] (cj1) -- (k);
             \path[draw,decorate] (k) -- (N);
           \end{tikzpicture}
-          \caption{A \cs\ attack attempt on \FC}
+          \caption{A \cs\ attack attempt on \FC. The adversary mines \(i+1\) block on their fork. Then, they mine \Cindex{m} on the main chain, including in its interlink data the MMR root corresponding to the MMR containing the adversary's forked block in its leaves. The adversary is then consistent with this MMR for every MMR root they have to include in a block.}
           \label{figure:chainsewingattempt}
         \end{figure}
       
         Starting from \(m=f+j+1\), which we will call the \textit{merging block} from now on, every block mined by the adversary will contain a MMR root corresponding to the MMR where the portion \(\mathsf{C[}f+1:f+j+1\mathsf{]}\) has been replaced with the adversary's fork, and where all honest miner's blocks are considered as legacy blocks. Once in this situation, a number \(n-m>n\,(1-\delta)\) of blocks are mined on top of \(\mathsf{C[}f+j+1\mathsf{]}\). In order to have, let us say, \(\mathsf{C[}f+1\mathsf{]}'\) accepted, the adversary must:
       
       \begin{itemize}
-        \item convince the verifier that they hold a chain \(\mathsf{C}'\) that is as long as the main chain;
-        \item provide the verifier with a MMR proof that \(\mathsf{C[}f+1\mathsf{]}'\) lies within \(\mathsf{C}'\).
+        \item \textbf{convince the verifier that they hold a chain \(\mathsf{C}'\) that is as long as the main chain};
+        \item \textbf{provide the verifier with a MMR proof} that \(\mathsf{C[}f+1\mathsf{]}'\) lies within \(\mathsf{C}'\).
       \end{itemize}
       
-      Let us focus on the latter for now. As a recall, the adversary blocks and an honest miner's now have different MMR roots, and both considers the other's blocks as legacy blocks. For this reason, it is necessary for a prover to have the capacity to designate a sampled block as legacy. Otherwise, whenever an adversary's block is mined, the proof provided by an honest miner will fail.
+      \paragraph{Convincing the verifier that \(\Cindex{f+1}'\) lies within the chain they own.} Let us focus on the latter for now. As a recall, the adversary blocks and an honest miner's now have different MMR roots, and both considers the other's blocks as legacy blocks. For this reason, it is necessary for a prover to have the capacity to designate a sampled block as legacy. Otherwise, whenever an adversary's block is mined, the proof provided by an honest miner will fail.
       
       Hence, it is possible for the adversary to designate any honest miner's block as a legacy block, so that only adversarial blocks are sampled. Because of the way the adversary has built its MMR, they will succeed in proving the inclusion of \(\Cindex{f+1}'\) in the chain the adversary claims to have.
       
-      However, the adversary still has to prove that the MMR root in \(\Cindex{f+1}'\) belongs to a chain of the same length as the main chain, that is to prove that the chain they claims to have is the longest chain they know. Indeed, two cases are possible:
-      
-      \begin{enumerate}
-      \item The verifier only connects to the adversary.
-      \item The verifier connects to at least one honest prover.
-      \end{enumerate}
-      
-      The first case is actually trivial: since the verifier has no other information than the ones provided by the adversary, the adversary will succeed in proving that she holds the longest chain, since there is no other chain anyway.
-      
-      The second case is more difficult. An honest prover will tell the verifier that they hold a chain of length \(n\). Since longer chains will be verified first, the adversary also has to claim having a chain of length \(n\), while only having a chain of length \(n-j+i\). \FC\ has been built for preventing this very situation. Hence, the only way for the adversary to succeed is to set \(j\geqslant i\). The adversary wants however to include as less fake blocks as possible. Hence, they have to set \(j=i\) since they can't mine faster than the main chain. Indeed, achieving \(j=i\) while keeping minimal the number of fake blocks is already hard.  The best strategy is then to try to mine \(\Cindex{x}'\) while \(\Cindex{x}\) is mined on the main chain for some \(x\). If \(\Cindex{x}'\) is mined before \(\Cindex{x}\), the adversary begins to mine \(\Cindex{x+1}'\). If it is not, the adversary places a fake block at place \(x\) and begins to mine \(\Cindex{x+1}'\). Note that even if the adversary have some advance, they have to wait until the corresponding block is mined for mining the merging block. For simplicity, let us take \(j=i=1\). This corresponds to the situation in \autoref{figure:chainsewingattack}.
+      \paragraph{Convincing the verifier that the chain they own is as long as the main chain.} The adversary still has to prove that the MMR root in \(\Cindex{f+1}'\) belongs to a chain of the same length as the main chain, that is to prove that the chain they claims to have is the longest chain they know. An honest prover will tell the verifier that they hold a chain of length \(n\). Since longer chains will be verified first, the adversary also has to claim having a chain of length \(n\), while only having a chain of length \(n-j+i\). \FC\ has been built for preventing this very situation. Hence, the only way for the adversary to succeed is to set \(j\geqslant i\). The adversary wants however to include as less fake blocks as possible. Hence, they have to set \(j=i\) since they can't mine faster than the main chain. Indeed, achieving \(j=i\) while keeping minimal the number of fake blocks is already hard. For simplicity, let us take \(j=i=1\). This corresponds to the situation in \autoref{figure:chainsewingattack}.
       
       \begin{figure}[ht]
         \centering
           \begin{tikzpicture}[decoration = {snake}]
             \node[block] (G) {};
-            \node[below of=G] {\(\Cindex{0}\) };
+            \node[below of=G] {\(\Cindex{0}\)};
             \node[block, right=of G] (c) {};
-            \node[below of=c] {\(\Cindex{f}\) };
+            \node[below of=c] {\(\Cindex{f}\)};
             \node[block, above right=of c, fill=black] (cprime1) {};
-            \node[below of=cprime1] {\(\Cindex{f+1}'\) };
+            \node[below of=cprime1] {\(\Cindex{f+1}'\)};
             \node[block, below right=of c] (c1) {};
-            \node[below of=c1] {\( \Cindex{f+1}\) };
+            \node[below of=c1] {\( \Cindex{f+1}\)};
             \node[block, above right=of c1, fill=black] (c2) {};
-            \node[below of=c2] {\(\Cindex{m}\) };
+            \node[below of=c2] {\(\Cindex{m}\)};
             \node[block, right=of c2] (k) {};
-            \node[below of=k] {\(\Cindex{n\,(1-\delta)}\) };
+            \node[below of=k] {\(\Cindex{n\,(1-\delta)}\)};
             \node[block, right=of k] (N) {};
-            \node[below of=N] {\(\Cindex{-1}\) };
+            \node[below of=N] {\(\Cindex{-1}\)};
             
             \path[draw, decorate] (G) -- (c);
             \path[draw] (cprime1.west) -- (c.north);
@@ -147,17 +137,19 @@
             \path[draw, decorate] (c2) -- (k);
             \path[draw,decorate] (k) -- (N);
           \end{tikzpicture}
-          \caption{A \cs\ attack attempt on \FC\ with a fork of length 1}
+          \caption{A \cs\ attack attempt on \FC\ with a fork of length 1. Since the adversary now owns a chain as long as the honest prover, there is nothing that can be used to distinguish the forked block \(\Cindex{f+1}'\) from the honest block \Cindex{f+1}.}
           \label{figure:chainsewingattack}
         \end{figure}
         
       Now, it is easy for the adversary to claim having a chain of length \(n\). Actually, they can even claim having a longer chain if they manage to mine a block at the top of the chain and by keeping it secret from the honest miners for a time. The advantage of doing this is that \FC\ will begin by the longer proof, that is the adversary's.
       
-      However, is is crucial that \(\Cindex{m}\) is not sampled when proving this. Indeed, an inconsistency between its PoW (or more generally, its reference to the previous block) and its MMR would be revealed. Indeed, the verifier is able to know that \(\Cindex{f+1}'\) and \(\Cindex{m}\) are supposed to be adjacent, according to the MMR structure they deduced from \(n\), that the adversary had to provide. Since the adversary wants \(\Cindex{f+1}'\) to be verified, they will have to send it to the prover. Hence, if \(\Cindex{m}\) is sampled by the client, then an inconsistency between the MMR root and the previous block can be detected by the client.
+      \subsection{Detecting a \cs\ attack on \FC}
       
-      Note that this case is not actually described in the \FC\ paper. Hence, if \FC\ is deployed without taking this problem into account, the probability of succees, as computed in \autoref{chapter:probability} increases. 
+      \paragraph{Inconsistency between the previous block reference and the block hash.} Despite the apparent perfection of the previous attack, is is crucial that \(\Cindex{m}\) is not sampled when proving having a chain as long as the honest prover. Indeed, an inconsistency between its PoW (or more generally, its reference to the previous block) and its MMR would be revealed. Indeed, the verifier is able to know that \(\Cindex{f+1}'\) and \(\Cindex{m}\) are supposed to be adjacent, since they know both the height of \(\Cindex{f+1}'\) and \Cindex{m}'s one. Since the adversary wants \(\Cindex{f+1}'\) to be verified, they will have to send it to the prover. Hence, if \(\Cindex{m}\) is sampled by the client, then an inconsistency between the MMR root and the previous block reference can be detected by the client, since \Cindex{m}'s previous block reference will point to \Cindex{f+1}.
       
-      A solution for the adversary to avoid this is simply to wait for blocks being mined on top of the main chain. Indeed, the original design of \FC\ makes old blocks less-likely to be sampled. Hence, by doing so, it is high-likely that \(\Cindex{m}\) won't be sampled, and that no inconsistency will be detected when the adversary will send \(\Cindex{f+1}'\).
+      Note that this case is not actually described in the \FC\ paper. Hence, if \FC\ is deployed without taking this problem into account, the probability of success, as computed in \autoref{chapter:probability} increases. Actually, if this check is not implemented, then the adversary can manage to have a probability of success of 1, given that they wait long enough.
+      
+      \paragraph{Mitigating the additional check of the previous block reference.} A solution for the adversary to avoid this is simply to wait for blocks being mined on top of the main chain. Indeed, the original design of \FC\ makes old blocks less likely to be sampled. Hence, by doing so, it is high-likely that \(\Cindex{m}\) won't be sampled, and that no inconsistency will be detected when the adversary will send \(\Cindex{f+1}'\).
       
       In order to circumvent this problem, one may also try to introduce intermediary blocks, valid or not, between \(\Cindex{f+1}'\) and \(\Cindex{m}\). Indeed, the problem here is that since we want \(\Cindex{f+1}'\) accepted, we have to provide the client with it, and this block is somehow too close to \(\Cindex{m}\). Let us consider the situation depicted in \autoref{figure:chainsewingdouble}.
       
@@ -165,23 +157,23 @@
         \centering
         \begin{tikzpicture}[decoration = {snake}]
           \node[block] (G) {};
-          \node[below of=G] {\(\Cindex{0}\) };
+          \node[below of=G] {\(\Cindex{0}\)};
           \node[block, right=of G] (c) {};
-          \node[below of=c] {\(\Cindex{f}\) };
+          \node[below of=c] {\(\Cindex{f}\)};
           \node[block, above right=of c,fill=black] (cprime1) {};
-          \node[below of=cprime1] {\(\Cindex{f+1}'\) };
+          \node[below of=cprime1] {\(\Cindex{f+1}'\)};
           \node[block, below right=of c] (c1) {};
           \node[block, right=of cprime1, fill=black] (cprime2) {};
-          \node[below of=cprime2] {\(\Cindex{f+2}'\) };
-          \node[below of=c1] {\(\Cindex{f+1}\) };
+          \node[below of=cprime2] {\(\Cindex{f+2}'\)};
+          \node[below of=c1] {\(\Cindex{f+1}\)};
           \node[block, right=of c1] (c2) {};
-          \node[below of=c2] {\(\Cindex{f+2}\) };
+          \node[below of=c2] {\(\Cindex{f+2}\)};
           \node[block, above right=of c2, fill=black] (c3) {};
-          \node[below of=c3] {\(\Cindex{m}\) };
+          \node[below of=c3] {\(\Cindex{m}\)};
           \node[block, right=of c3] (k) {};
-          \node[below of=k] {\(\Cindex{n\,(1-\delta)}\) };
+          \node[below of=k] {\(\Cindex{n\,(1-\delta)}\)};
           \node[block, right=of k] (N) {};
-          \node[below of=N] {\(\Cindex{-1}\) };
+          \node[below of=N] {\(\Cindex{-1}\)};
           
           \path[draw, decorate] (G) -- (c);
           \path[draw] (cprime1.west) -- (c.north);
@@ -193,86 +185,111 @@
           \path[draw, decorate] (c3) -- (k);
           \path[draw,decorate] (k) -- (N);
         \end{tikzpicture}
-        \caption{A try to prevent the merging block sampling problem}
+        \caption{A try to prevent the merging block sampling problem. Since neither \(\Cindex{f+2}'\) is necessarily sampled by the \FC\ protocol nor is \Cindex{m}, the probability of getting caught decreases. Indeed, the attack now fails if both \Cindex{m} and \(\Cindex{f+2}'\) are sampled, which is less likely than having just \Cindex{m} sampled.}
         \label{figure:chainsewingdouble}
       \end{figure}
         
-      The adversary significantly increases its probablity of success by doing so, but this is also more difficult to setup. Indeed, several cases of sampling are possible. If neither \(\Cindex{m}\) nor \(\Cindex{f+2}'\) are sampled, there is no problem and the attack succeeds. If \(\Cindex{f+2}'\) is sampled without \(\Cindex{m}\), the attack also succeeds, since \(\Cindex{f+2}'\) is valid both from the previous block reference point of view and from the MMR root point of view. If both \(\Cindex{m}\) and \(\Cindex{f+2}'\) are sampled, the attack fails, since the inconsistency between the previous block reference of \(\Cindex{m}\) and the hash of \(\Cindex{f+2}'\) would then be revealed. Finally, if \(\Cindex{m}\) is the only one to be sampled, then it depends on whether \(m\) is odd. If \(m\) is even, then \(\Cindex{m}\) and \(\Cindex{f+2}'\) will share the same parent node in the MMR the adversary would have built. Hence, the hash of \(\Cindex{f+2}'\) would have to be provided in the MMR proof of the inclusion of \(\Cindex{m}\) within the chain. If \(m\) is odd however, they don't share the same parent node. Hence, the hash of \(\Cindex{f+2}'\) won't appear in the proof and the inconsistency wouldn't be detected.  
+      The adversary increases its probability of success by doing so, but this is also more difficult to setup. Indeed, several cases of sampling are possible:
+      
+      \begin{itemize}
+        \item\textbf{if neither \(\Cindex{m}\) nor \(\Cindex{f+2}'\) are sampled,} there is no problem and the attack succeeds;
+        \item\textbf{if \(\Cindex{f+2}'\) is sampled without \(\Cindex{m}\),} the attack also succeeds, since \(\Cindex{f+2}'\) is valid both from the previous block reference point of view and from the MMR root point of view;
+        \item\textbf{if both \(\Cindex{m}\) and \(\Cindex{f+2}'\) are sampled,} the attack fails, since the inconsistency between the previous block reference of \(\Cindex{m}\) and the hash of \(\Cindex{f+2}'\) would then be revealed;
+        \item\textbf{if \(\Cindex{m}\) is the only one to be sampled,} then it depends on whether \(m\) is odd. If \(m\) is even, then \(\Cindex{m}\) and \(\Cindex{f+2}'\) will share the same parent node in the MMR the adversary would have built. Hence, the hash of \(\Cindex{f+2}'\) would have to be provided in the MMR proof of the inclusion of \(\Cindex{m}\) within the chain. If \(m\) is odd however, they don't share the same parent node. Hence, the hash of \(\Cindex{f+2}'\) won't appear in the proof and the inconsistency wouldn't be detected.
+      \end{itemize}
 
       Getting back to the \cs\ attack, the reason why this works on a velvet fork only is that an adversary is allowed to put some fake MMR root in a block header of the main chain. In particular, the following was outlined in the \FC\ paper: \enquote{once a malicious prover forks off from the honest chain, it cannot include any of the later honest blocks in its chain because the MMR root in those blocks would not match the chain} \cite{\FCCite}.
       
       In particular, the adversary is not forced to create a fork as long as the main chain, eventually creating fake blocks. We may note that this attack works as long as the fork created by the adversary is as long as the corresponding chain portion. The adversary can also include fake blocks in its fork to have a longer fork while sticking to this constraint. Even though this increases the probability of getting caught as every fake block sampled results in a failed proof, waiting long enough once the fork has been merged is enough for hoping that these blocks won't be sampled. Hence, the attack also works with longer forks.
 
-\section{Possible setups for a \cs\ attack}
+\section[Possible setups]{Possible setups for a \cs\ attack}
+    \subsection{Creating coins using the \cs\ attack}
     It is important to note that although the \cs\ attack depicted as above fools the client, it is actually not that grave. Indeed, for the adversary to have some blocks accepted, it is necessary that they wait a long time for the merging block to be deeper in the chain so that it is not sampled. Hence, it is necessary that the adversary plans long in advance their attack.
     
-    However, a much more powerful attack is possible using a very similar setup: it is possible for the adversary to fail the SPV assumption, that is to convince the client into trusting that an invalid block is included in the main chain. Indeed, let us consider the setup depicted in \autoref{figure:withfake}.
+    However, a much more powerful attack is possible using a very similar setup: it is possible for the adversary to fail the SPV assumption, that is to convince the client into trusting that an invalid block is included in the main chain. If the attack succeed, then the adversary would have been able to convince the client that an invalid block according to the old protocol rules is included in the blockchain. Not only it would have allowed the prover to make the client believe that they have performed some transaction using their coins, but also that they have performed some transaction using more coins that they actually own. It may allow an adversary to create coins in a first place and then to transfer them to another account, so that this new account can spend them whenever they want. This is not possible in any other case: even if an adversary wants to perform a more classical double-spent transaction, it is not possible for them to create coins they can use to perform this transaction.
+    
+    \subsection{The direct setup: including fake blocks in the fork when not managing to mine the merging block}
+    It is very likely that the adversary won't manage to mine both \(\Cindex{f+1}'\) and \Cindex{m} before the main chain. Hence, the adversary has the possibility to include fake blocks in their fork until the manage to mine \Cindex{m}. Indeed, let us consider the setup depicted in \autoref{figure:withfake}.
     
     \begin{figure}[ht]
         \centering
         \begin{tikzpicture}[decoration = {snake}]
           \node[block] (G) {};
-          \node[below of=G] {\(\Cindex{0}\) };
+          \node[below of=G] {\(\Cindex{0}\)};
           \node[block, right=of G] (c) {};
-          \node[below of=c] {\(\Cindex{f}\) };
+          \node[below of=c] {\(\Cindex{f}\)};
           \node[block, above right=of c,fill=red!20] (cprime1) {};
-          \node[below of=cprime1] {\(\Cindex{f+1}'\) };
+          \node[below of=cprime1] {\(\Cindex{f+1}'\)};
           \node[block, below right=of c] (c1) {};
           \node[block, right=of cprime1, fill=black] (cprime2) {};
-          \node[below of=cprime2] {\(\Cindex{f+2}'\) };
-          \node[below of=c1] {\(\Cindex{f+1}\) };
+          \node[below of=cprime2] {\(\Cindex{f+2}'\)};
+          \node[block, right=of cprime2, fill=red!20] (cprime3) {};
+          \node[below of=cprime3] {\(\Cindex{f+3}'\)};
+          \node[block, right=of cprime3, fill=red!20] (cprime4) {};
+          \node[below of=cprime4] {\(\Cindex{m-1}'\)};
+          \node[below of=c1] {\(\Cindex{f+1}\)};
           \node[block, right=of c1] (c2) {};
-          \node[below of=c2] {\(\Cindex{f+2}\) };
-          \node[block, above right=of c2, fill=black] (c3) {};
-          \node[below of=c3] {\(\Cindex{m}\) };
-          \node[block, right=of c3] (k) {};
-          \node[below of=k] {\(\Cindex{n\,(1-\delta)}\) };
+          \node[below of=c2] {\(\Cindex{f+2}\)};
+          \node[block, right=of c2] (c3) {};
+          \node[below of=c3] {\(\Cindex{f+3}\)};
+          \node[block, right=of c3] (c4) {};
+          \node[below of=c4] {\(\Cindex{m-1}\)};
+          \node[block, above right=of c4, fill=black] (cm) {};
+          \node[below of=cm] {\(\Cindex{m}\)};
+          \node[block, right=of cm] (k) {};
+          \node[below of=k] {\(\Cindex{n\,(1-\delta)}\)};
           \node[block, right=of k] (N) {};
-          \node[below of=N] {\(\Cindex{-1}\) };
+          \node[below of=N] {\(\Cindex{-1}\)};
           
           \path[draw, decorate] (G) -- (c);
           \path[draw] (cprime1.west) -- (c.north);
           \path[draw] (c1.west) -- (c.south);
           \path[draw] (cprime1) -- (cprime2);
+          \path[draw] (cprime2) -- (cprime3);
+          \path[draw, decorate] (cprime3) -- (cprime4);
           \path[draw] (c1) -- (c2);
-          \path[draw, dashed, ->] (c3.north) -- (cprime2.east);
-          \path[draw] (c3.south) -- (c2.east);
-          \path[draw, decorate] (c3) -- (k);
-          \path[draw,decorate] (k) -- (N);
+          \path[draw] (c2) -- (c3);
+          \path[draw, decorate] (c3) -- (c4);
+          \path[draw, dashed, ->] (cm.north) -- (cprime4.east);
+          \path[draw] (cm.south) -- (c4.east);
+          \path[draw, decorate] (cm) -- (k);
+          \path[draw, decorate] (k) -- (N);
         \end{tikzpicture}
-        \caption{Creating coins using the \cs\ attack}
+        \caption{Creating coins using the \cs\ attack with the direct setup. \(\Cindex{f+1}'\) creates fake UTXOs that are spent in \(\Cindex{f+2}'\), which the client wants accepted by the client. Once \(\Cindex{f+2}'\) is mined, the attacker adds fake blocks in their chain until the managed to mine \Cindex{m} on the main chain, effectively closing their fork.}
         \label{figure:withfake}
       \end{figure}
 
-    The setup looks like the setup depicted in \autoref{figure:chainsewingdouble}, but actually is more similar to the one depicted in \autoref{figure:chainsewingattack}. Indeed, the idea is exactly the same: the adversary wants some block, here \(\Cindex{f+2}'\) accepted by the client and merges their fork using \(\Cindex{m}\). However, they also included a fake block at position \(f+1\) in their fork. The point of doing this is creating fake UTXO. Indeed, since this block is not verified by the honest nodes, the adversary can create fake transaction in it without owning the private key of the concerned nodes. It is then possible to use these fake transaction as UTXO to perform another, legitimately signed, transaction in \(\Cindex{f+2}'\).
+    The setup is quite a fusion between the two previous ones. Indeed, the idea is exactly the same: the adversary wants some block, here \(\Cindex{f+2}'\) accepted by the client and merges their fork using \(\Cindex{m}\). However, they also included a fake block at position \(f+1\) in their fork. The point of doing this is creating fake UTXOs. Indeed, since this block is not verified by the honest nodes, the adversary can create fake transaction in it without owning the private key of the concerned nodes. It is then possible to use these fake transaction as UTXO to perform another, legitimately signed, transaction in \(\Cindex{f+2}'\).
     
-    Of course, the attack now fails if either \(\Cindex{f+1}'\) or \(\Cindex{m}\) are sampled by the client. But it is also possible to perform a similar setup to \autoref{figure:chainsewingdouble}, by adding a new honest block after \(\Cindex{f+2}'\). This is shown in \autoref{figure:withfakedouble}.
+    \subsection{The valid-between setup: maximising the probability of success by including a single valid block before the merging one}
+    
+    Of course, the previous attack now fails if either \(\Cindex{f+1}'\) or a block in \Crange{f+3}{m} are sampled by the client, assuming that when a block is sampled, every transaction in it are also provided by the prover. However, this somehow solves the merging block sampling problem: since \(\Cindex{m-1}'\) is not supposed to be sampled anyway, there is no inconsistency if \Cindex{m} is sampled. Hence, there is no gain in including fake blocks after \(\Cindex{f+2}'\) if the adversary wants to have an honest block before \Cindex{m}. This situation is shown on \autoref{figure:withfakedouble}.
 
     \begin{figure}[ht]
         \centering
         \begin{tikzpicture}[decoration = {snake}]
           \node[block] (G) {};
-          \node[below of=G] {\(\Cindex{0}\) };
+          \node[below of=G] {\(\Cindex{0}\)};
           \node[block, right=of G] (c) {};
-          \node[below of=c] {\(\Cindex{f}\) };
+          \node[below of=c] {\(\Cindex{f}\)};
           \node[block, above right=of c,fill=red!20] (cprime1) {};
-          \node[below of=cprime1] {\(\Cindex{f+1}'\) };
+          \node[below of=cprime1] {\(\Cindex{f+1}'\)};
           \node[block, below right=of c] (c1) {};
           \node[block, right=of cprime1, fill=black] (cprime2) {};
-          \node[below of=cprime2] {\(\Cindex{f+2}'\) };
+          \node[below of=cprime2] {\(\Cindex{f+2}'\)};
           \node[block, right=of cprime2, fill=black] (cprime3) {};
-          \node[below of=cprime3] {\(\Cindex{f+3}'\) };
-          \node[below of=c1] {\(\Cindex{f+1}\) };
+          \node[below of=cprime3] {\(\Cindex{f+3}'\)};
+          \node[below of=c1] {\(\Cindex{f+1}\)};
           \node[block, right=of c1] (c2) {};
-          \node[below of=c2] {\(\Cindex{f+2}\) };
+          \node[below of=c2] {\(\Cindex{f+2}\)};
           \node[block, right=of c2] (c3) {};
-          \node[below of=c3] {\(\Cindex{f+3}\) };
+          \node[below of=c3] {\(\Cindex{f+3}\)};
           \node[block, above right=of c3, fill=black] (cm) {};
-          \node[below of=cm] {\(\Cindex{m}\) };
+          \node[below of=cm] {\(\Cindex{m}\)};
           \node[block, right=of cm] (k) {};
-          \node[below of=k] {\(\Cindex{n\,(1-\delta)}\) };
+          \node[below of=k] {\(\Cindex{n\,(1-\delta)}\)};
           \node[block, right=of k] (N) {};
-          \node[below of=N] {\(\Cindex{-1}\) };
+          \node[below of=N] {\(\Cindex{-1}\)};
           
           \path[draw, decorate] (G) -- (c);
           \path[draw] (cprime1.west) -- (c.north);
@@ -286,37 +303,39 @@
           \path[draw, decorate] (cm) -- (k);
           \path[draw,decorate] (k) -- (N);
         \end{tikzpicture}
-        \caption{Creating coins using the \cs\ attack while trying to avoid the merging block sampling problem}
+        \caption{Creating coins using the \cs\ attack  with the valid-between setup. This approach tries to have no fake blocks but the one creating coins and tries to avoid the merging block sampling problem. \(\Cindex{f+1}'\) still creates fake UTXOs, but now the attacker retries to do the attack every time they fail to mine \(\Cindex{f+2}'\), \(\Cindex{f+3}'\) and \Cindex{m} before the main chain.}
         \label{figure:withfakedouble}
       \end{figure}
       
-      Finally, it is also possible for the adversary to create coins in a first time, and then to perform a second \cs\ attack some time after, as depicted in \autoref{figure:withfakewait}.
+      \subsection{The double \cs\ setup}
+      
+      It is also possible for the adversary to create coins in a first time, and then to perform a second \cs\ attack some time after, as depicted in \autoref{figure:withfakewait}.
       
     \begin{figure}[ht]
         \centering
           \begin{tikzpicture}[decoration = {snake}]
             \node[block] (G) {};
-            \node[below of=G] {\(\Cindex{0}\) };
+            \node[below of=G] {\(\Cindex{0}\)};
             \node[block, right=of G] (c) {};
-            \node[below of=c] {\(\Cindex{f}\) };
+            \node[below of=c] {\(\Cindex{f}\)};
             \node[block, above right=of c, fill=red!20] (cprime1) {};
-            \node[below of=cprime1] {\(\Cindex{f+1}'\) };
+            \node[below of=cprime1] {\(\Cindex{f+1}'\)};
             \node[block, below right=of c] (c1) {};
-            \node[below of=c1] {\( \Cindex{f+1}\) };
+            \node[below of=c1] {\( \Cindex{f+1}\)};
             \node[block, above right=of c1, fill=black] (c2) {};
-            \node[below of=c2] {\(\Cindex{m}\) };
+            \node[below of=c2] {\(\Cindex{m}\)};
             \node[block, right=of c2] (k) {};
-            \node[below of=k] {\(\Cindex{f'}\) };
+            \node[below of=k] {\(\Cindex{f'}\)};
             \node[block, above right=of k, fill=black] (kprime1) {};
-            \node[below of=kprime1] {\(\Cindex{f'+1}'\) };
+            \node[below of=kprime1] {\(\Cindex{f'+1}'\)};
             \node[block, below right=of k] (k1) {};
-            \node[below of=k1] {\(\Cindex{f'+1}\) };
+            \node[below of=k1] {\(\Cindex{f'+1}\)};
             \node[block, above right=of k1, fill=black] (cmprime) {};
-            \node[below of=cmprime] {\(\Cindex{m'}\) };
+            \node[below of=cmprime] {\(\Cindex{m'}\)};
             \node[block, right=of cmprime] (1mdelta) {};
-            \node[below of=1mdelta] {\(\Cindex{n\,(1-\delta)}\) };
+            \node[below of=1mdelta] {\(\Cindex{n\,(1-\delta)}\)};
             \node[block, right=of 1mdelta] (N) {};
-            \node[below of=N] {\(\Cindex{-1}\) };
+            \node[below of=N] {\(\Cindex{-1}\)};
     
             
             \path[draw, decorate] (G) -- (c);
@@ -332,48 +351,59 @@
             \path[draw, decorate] (cmprime) -- (1mdelta);
             \path[draw, decorate] (1mdelta) -- (N);
           \end{tikzpicture}
-          \caption{A double \cs\ attack attempt on \FC}
+          \caption{Creating coins using the \cs\ attack with the double \cs\ setup. \(\Cindex{f+1}'\) still creates fake coins, but they are now spent later in the chain, using another \cs\ attack. This only works if \FC\ cannot verify the validity of \(\Cindex{f+1}'\), thus it only works if \FC\ only samples block headers.}
           \label{figure:withfakewait}
     \end{figure}
         
-        In this attack, the adversary wants \(\Cindex{f'+1}\) accepted by the client, knowing that it uses fake \glspl{utxo} created in \(\Cindex{f+1}\). Note that it is also possible for the adversary to include a honest block between \(\Cindex{f+1}'\) and \(\Cindex{m}\) or between \(\Cindex{f'+1}'\) and \(\Cindex{m'}\) to try to prevent the merging block sampling problem. If the attack succeed, then the adversary was able to convince the client that an invalid block according to the old protocol rules is included in the blockchain. Not only it allows the client to make the client believe that they have performed some transaction using their coins, but also that they have performed some transaction using more coins that they actually own. It may allow an adversary to create coins in a first place and then to transfer them to another account, so that this new account can spend them whenever they want. This is not possible in any other case: even if an adversary wants to perform a more classical double-spent transaction, it is not possible for them to create coins they can use to perform this transaction.
+        This setup is, however, unrealistic. Indeed, it only works if \FC\ cannot check the validity of the block creating coins, thus it only works if the client does not sample the whole block, but only the block header. However, since it is possible to spend from UTXOs in the same block, it is more convenient for the adversary to create fake UTXOs in the forked block and directly spend from them. The double \cs\ setup can only prove useful if the clients checks for a fixed number of UTXOs. In that case, it is not possible for the adversary to create UTXOs in the sampled block, since they will get caught. The double \cs\ setup is hence only to be used to obfuscate the fake UTXOs that the adversary wants to create.
 
-\section{The slightly improved, utopian \FC\ protocol}
-    If \FC\ were to be implemented as described in \cite{\FCCite}, the \cs\ attack would be undetectable. Indeed, there is no mention to checking the consistency between the previous block header hash reference and the hash provided by the prover in the MMR proof. Since this is very easy to do, we will assume in the following that this check is performed.
+\section[\FC\ slightly improved]{The slightly improved, utopian \FC\ protocol}
+    \paragraph{Providing \FC\ with an additional check to the previous block reference.} If \FC\ were to be implemented as described in \cite{\FCCite}, the \cs\ attack would be undetectable if the adversary manages to include no fake blocks in their fork. Indeed, there is no mention to checking the consistency between the previous block header hash reference and the hash provided by the prover in the MMR proof. Since this is very easy to do, we will assume in the following that this check is performed.
     
-    Plus, the original \FC\ paper uses the Fiat--Shamir heuristic to use the hash of the last block header as a verifiable source of randomness. This induces a major problem: either the protocol must wait for a block to be mined on top of the last block of the chain or it means that that the prover does know which blocks will be sampled before starting the protocol. This is not that grave concerning the original \FC\ protocol, since the probability of success of the attack is very low, an adversary would have to wait a unreasonable time for the attack to succeed. However, concerning the \cs\ attack, the probability of success is way higher, as computed in \autoref{section:firstsetup}. Hence, the adversary could setup the attack and then wait for a block that will sample neither the merging block nor the fake blocks. Hence, we will assume that both the protocol induces a verifiable source of randomness, so that the adversary does not know which blocks would be sampled before starting the protocol, even though it probably induces in reality an interactive protocol.
+    \paragraph{\FC's source of randomness.} The original \FC\ paper uses the Fiat--Shamir heuristic to use the hash of the last block header as a verifiable source of randomness. This induces a major problem: either the protocol must wait for a block to be mined on top of the last block of the chain or it means that that the prover does know which blocks will be sampled before starting the protocol. This is not that grave concerning the original \FC\ protocol, since the probability of success of the attack is very low, an adversary would have to wait a unreasonable time for the attack to succeed. However, concerning the \cs\ attack, the probability of success is way higher, as computed in \autoref{section:firstsetup}. Hence, the adversary could setup the attack and then wait for a block that will sample neither the merging block nor the fake blocks. Hence, we will assume that both the protocol induces a verifiable source of randomness, so that the adversary does not know which blocks would be sampled before starting the protocol, even though it probably induces in reality an interactive protocol.
     
-    Furthermore, we will assume that the penalty that the adversary gets if they get caught is high concerning this transaction. For instance, if the adversary fails to prove the inclusion of a given transaction, one can imagine that the client won't allow them to try to prove the inclusion anymore. This incentives the adversary to try to perform the attack only when they have a probability of success, which is hard to obtain.
-    
-    Finally, we will assume that, for efficiency's sake, the client only asks for block header, potentially along with a Merkle proof of inclusion of a transaction. As a consequence however, the adversary does not have to place \(\Cindex{f+1}'\) in their fork to create the \glspl{utxo} they want to use. Indeed, it is possible in the Bitcoin protocol to use an \gls{utxo} created in the same block. Since the \FC\ protocol does not sample the whole block but only the block header, the client has no way to find out that this \gls{utxo} is actually a fake one. Hence, the situation depicted in \autoref{figure:withfake} would, in this case, be represented as shown in \autoref{figure:withfakecreating}, while the one depicted in \autoref{figure:withfakedouble} would be represented as shown on \autoref{figure:withfakedoublecreating}.
+    \paragraph{Sampling only block headers for efficiency's sake.} Finally, we will assume that, for efficiency's sake, the client only asks for block headers, potentially along with a Merkle proof of inclusion of a transaction. As a consequence however, the adversary does not have to place \(\Cindex{f+1}'\) in their fork to create the UTXOs they want to use. Indeed, it is possible in the Bitcoin protocol to use an UTXO created in the same block. Since the \FC\ protocol does not sample the whole block but only the block header, the client has no way to find out that this UTXO is actually a fake one. Hence, the direct setup originally depicted in \autoref{figure:withfake} would, in this case, be represented as shown in \autoref{figure:withfakecreating}, while the one depicted in \autoref{figure:withfakedouble} would be represented as shown on \autoref{figure:withfakedoublecreating}.
     
     \begin{figure}[ht]
         \centering
           \begin{tikzpicture}[decoration = {snake}]
             \node[block] (G) {};
-            \node[below of=G] {\(\Cindex{0}\) };
+            \node[below of=G] {\(\Cindex{0}\)};
             \node[block, right=of G] (c) {};
-            \node[below of=c] {\(\Cindex{f}\) };
+            \node[below of=c] {\(\Cindex{f}\)};
             \node[block, above right=of c, fill=red!20] (cprime1) {};
-            \node[below of=cprime1] {\(\Cindex{f+1}'\) };
+            \node[below of=cprime1] {\(\Cindex{f+1}'\)};
+            \node[block, right=of cprime1, fill=red!20] (cprime2) {};
+            \node[below of=cprime2] {\(\Cindex{f+2}'\)};
+            \node[block, right=of cprime2, fill=red!20] (cprime3) {};
+            \node[below of=cprime3] {\(\Cindex{m-1}'\)};
             \node[block, below right=of c] (c1) {};
-            \node[below of=c1] {\( \Cindex{f+1}\) };
-            \node[block, above right=of c1, fill=black] (c2) {};
-            \node[below of=c2] {\(\Cindex{m}\) };
-            \node[block, right=of c2] (k) {};
-            \node[below of=k] {\(\Cindex{n\,(1-\delta)}\) };
+            \node[below of=c1] {\( \Cindex{f+1}\)};
+            \node[block, right=of c1] (c2) {};
+            \node[below of=c2] {\(\Cindex{f+2}\)};
+            \node[block, right=of c2] (c3) {};
+            \node[below of=c3] {\(\Cindex{m - 1}\)};
+            \node[block, above right=of c3, fill=black] (cm) {};
+            \node[below of=cm] {\(\Cindex{m}\)};
+            \node[block, right=of cm] (k) {};
+            \node[below of=k] {\(\Cindex{n\,(1-\delta)}\)};
             \node[block, right=of k] (N) {};
-            \node[below of=N] {\(\Cindex{-1}\) };
+            \node[below of=N] {\(\Cindex{-1}\)};
             
             \path[draw, decorate] (G) -- (c);
             \path[draw] (cprime1.west) -- (c.north);
+            \path[draw] (cprime2) -- (cprime1);
+            \path[draw, decorate] (cprime3) -- (cprime2);
             \path[draw] (c1.west) -- (c.south);
-            \path[draw, dashed, ->] (c2.north) -- (cprime1.east);
-            \path[draw] (c2.south) -- (c1.east);
-            \path[draw, decorate] (c2) -- (k);
+            \path[draw] (c2) -- (c1);
+            \path[draw, decorate] (c3) -- (c2);
+            \path[draw] (c1.west) -- (c.south);
+            \path[draw, dashed, ->] (cm.north) -- (cprime3.east);
+            \path[draw] (cm.south) -- (c3.east);
+            \path[draw, decorate] (cm) -- (k);
             \path[draw,decorate] (k) -- (N);
           \end{tikzpicture}
-          \caption{A \cs\ attack attempt on \FC\ that creates coins with a fork of length 1}
+          \caption{A \cs\ attack on \FC\ that creates coins using the direct setup. The block creating the coins is the same that the attacker wants accepted by the client, that is \(\Cindex{f+1}'\).}
           \label{figure:withfakecreating}
         \end{figure}
         
@@ -381,23 +411,23 @@
         \centering
         \begin{tikzpicture}[decoration = {snake}]
           \node[block] (G) {};
-          \node[below of=G] {\(\Cindex{0}\) };
+          \node[below of=G] {\(\Cindex{0}\)};
           \node[block, right=of G] (c) {};
-          \node[below of=c] {\(\Cindex{f}\) };
+          \node[below of=c] {\(\Cindex{f}\)};
           \node[block, above right=of c,fill=red!20] (cprime1) {};
-          \node[below of=cprime1] {\(\Cindex{f+1}'\) };
+          \node[below of=cprime1] {\(\Cindex{f+1}'\)};
           \node[block, below right=of c] (c1) {};
           \node[block, right=of cprime1, fill=black] (cprime2) {};
-          \node[below of=cprime2] {\(\Cindex{f+2}'\) };
-          \node[below of=c1] {\(\Cindex{f+1}\) };
+          \node[below of=cprime2] {\(\Cindex{f+2}'\)};
+          \node[below of=c1] {\(\Cindex{f+1}\)};
           \node[block, right=of c1] (c2) {};
-          \node[below of=c2] {\(\Cindex{f+2}\) };
+          \node[below of=c2] {\(\Cindex{f+2}\)};
           \node[block, above right=of c2, fill=black] (c3) {};
-          \node[below of=c3] {\(\Cindex{m}\) };
+          \node[below of=c3] {\(\Cindex{m}\)};
           \node[block, right=of c3] (k) {};
-          \node[below of=k] {\(\Cindex{n\,(1-\delta)}\) };
+          \node[below of=k] {\(\Cindex{n\,(1-\delta)}\)};
           \node[block, right=of k] (N) {};
-          \node[below of=N] {\(\Cindex{-1}\) };
+          \node[below of=N] {\(\Cindex{-1}\)};
           
           \path[draw, decorate] (G) -- (c);
           \path[draw] (cprime1.west) -- (c.north);
@@ -409,8 +439,10 @@
           \path[draw, decorate] (c3) -- (k);
           \path[draw,decorate] (k) -- (N);
         \end{tikzpicture}
-        \caption{Preventing the merging block sampling problem while creating coins}
+        \caption{A \cs\ attack on \FC\ using the valid-between setup. The block creating the coins is the same that the attacker wants accepted by the client, that is \(\Cindex{f+1}'\).}
         \label{figure:withfakedoublecreating}
       \end{figure}
+     
+    \paragraph{\FC\ on a velvet fork.} In the original \FC\ paper \cite{\FCCite}, \citeauthor{\FCCite} explained that in order for \FC\ to be deployed as a velvet fork, legacy blocks that are sampled must be sent along with their children, until a block mined by an up-to-date miner is found. Since it is possible to have a MMR proof of inclusion of a legacy block, the goal here is to perform the second check of \FC: ensuring that the MMR root present in the block header is indeed valid. This is actually not required on a velvet fork, since the interlink data isn't verified by the consensus anyway. However, if a majority of miners adopt the velvet fork, then if deployed correctly it could be transformed to a soft fork. For this reason, we will assume that the up-to-date miners include the MMR root in the block, potentially in the coinbase field or using an \texttt{OP\_RETURN} transaction. Otherwise, it won't be mandatory for the attacker to mine the merging block: they can just create the MMR they want that includes the leaves of their fork. Hence: we're working in the worst case scenario for the attacker: the one where they have to mine the merging block.
         
     In the next chapter, we will aim to compute the probability for these attacks succeeding.

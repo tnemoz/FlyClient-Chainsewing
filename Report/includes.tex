@@ -7,6 +7,29 @@
 \usepackage{fancyhdr} % page layout
 \usepackage{url}
 \usepackage{graphicx}
+
+
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage[standard]{ntheorem}
+\usepackage[linguistics]{forest}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows,calc,fit,backgrounds,shapes.multipart, positioning, decorations, shadows}
+\tikzstyle{block} = [draw, text centered, text width=.2cm, text height=.2cm]
+\usepackage{pgfplots}
+\pgfplotsset{compat=newest, colormap name=viridis}
+\usepgfplotslibrary{groupplots}
+\usepackage[
+    backend=bibtex,
+    citestyle=numeric-comp,
+    sorting=nty,
+    backref=true
+]{biblatex}
+\usepackage{csquotes}
+\addbibresource{main.bib}
+\usepackage[ruled, vlined]{algorithm2e}
+
 \usepackage[hypertexnames=false,colorlinks]{hyperref} % provide links in pdf
 \hypersetup{
   pdftitle={\reporttitle},
@@ -21,26 +44,8 @@
     linkcolor=black,%
     urlcolor=black
 }
+
 \usepackage[all]{hypcap}
-\usepackage{amsmath}
-\usepackage{amsfonts}
-\usepackage{amssymb}
-\usepackage[standard]{ntheorem}
-\usepackage[linguistics]{forest}
-\usepackage{tikz}
-\usetikzlibrary{shapes,arrows,calc,fit,backgrounds,shapes.multipart, positioning, decorations}
-\tikzstyle{block} = [draw, text centered, text width=.2cm, text height=.2cm]
-\usepackage{pgfplots}
-\pgfplotsset{compat=newest, colormap name=viridis}
-\usepgfplotslibrary{groupplots}
-\usepackage[
-    backend=bibtex,
-    citestyle=numeric-comp,
-    sorting=nty,
-    backref=true
-]{biblatex}
-\usepackage{csquotes}
-\addbibresource{main.bib}
 
 %%% Default fonts
 \renewcommand*{\rmdefault}{bch}
@@ -84,10 +89,3 @@
   }}
 
 \allowdisplaybreaks
-
-\usepackage[toc,acronym]{glossaries}
-\newglossary[nlg]{notations}{not}{ntn}{Notations}
-\newglossary[nlg]{notationschainsewing}{notc}{ntnc}{NotationsC}
-\newglossary[nlg]{notationsprobabilities}{notp}{ntnp}{NotationsP}
-\makeglossaries
-\loadglsentries{Glossary}

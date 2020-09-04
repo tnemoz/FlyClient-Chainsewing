@@ -1,0 +1,48 @@
+In this chapter, we aim at describing the implementation designs due to the cross-chain relay and velvet fork settings.
+
+\section{Implementation designs}
+\paragraph{Technology used.} In order to implement \FC\ as cross-chain relay, we decided to use the version 0.6.12 of Solidity \cite{Solidity}. This choice was motivated by the fact that a large majority of Smart Contracts are deployed using Solidity as of September 2019 \cite{VyperSolidity}. What that means is that it is way easier to maintain the code if it is written in Solidity, since more people would be able to understand the code.
+
+Furthermore, the vast community coding in Solidity also allows to use libraries coded by others to code safer and more efficient contracts. We used the SafeMath library \cite{SafeMath} in order to check for underflow and overflow when using \texttt{uint} and the BytesLib library \cite{BytesLib} which allows to perform some operations on \texttt{bytes} object more efficiently than the corresponding naive versions.
+
+\paragraph{The source of randomness used for the random sampling.} During the second part of the protocol, an uniform random sampling has to be done. Hence, it is necessary for the client to have a verifiable source of randomness. The \FC\ original protocol uses the Fiat--Shamir heuristic on the last Bitcoin block header hash to keep the protocol non-interactive. This however induces a severe delay since the prover has to wait for the next block hash. Furthermore, with a high computational power, the adversary may be able to influence the hash of the block to be mined. Indeed, it is possible for them to know, given the hash, which blocks will be sampled. If they have a low number of fake blocks, trying another hash may allow them to avoid the mitigated \FC's checks.
+
+Since the mitigated \FC\ protocol is interactive, it is easier for the client to set the randomness itself rather than proving that the prover respected the randomness. Since \FC\ is implemented as a Smart Contract on the Ethereum blockchain, it can use Ethereum blocks as a source of randomness for the uniform sampling.
+
+However, this is the same problem: either the client uses a previous block header hash, in which case the adversary knows in advance which blocks will be sampled, or the client has to wait for a block to be mined on the Ethereum blockchain, assuming the adversary has not both a large hashrate for the Bitcoin blockchain and the Ethereum one. Worse, if the client has to wait for a block to be mined to use its hash, it must be triggered by a transaction. Even though we would assume that in that case, the honest prover will trigger the verification as soon as a block is mined, this is an inconvenience to the prover.
+
+\paragraph{\FC\ as a velvet fork.} Contrarily to what was stated in the \FC\ original paper \cite{\FCCite}, deploying \FC\ on a velvet fork does not increase the proof size provided by the prover. Indeed, the goal of including the MMR root in the block was precisely to check that the consensus validated it. Recovering the root present in the MMR has no point when \FC\ is deployed as a velvet fork, since nothing enforces the value that must be present in the interlink data.
+
+For this reason, since we've focused our implementation on deploying \FC\ as a velvet fork, it is possible to send the block header to verify its validity and its MMR root along, without being present in the block. This is more convenient for the prover and also cheaper: since the client does not have to recover the MMR root present within a block, it spends less gas than a classic \FC\ implementation would have spent.
+
+\section{Evaluation}
+
+We now want to evaluate the cost that a prover must pay in gas in order to verify a transaction. The prover, assuming the other prover is dishonest, will have to follow in the worst case the following process:
+
+\begin{enumerate}
+    \item They commit to their chain using the \texttt{commitment} function, using around \SI{400000}{Gas}.
+    \item They query the \texttt{getNext} function, which consumes \SI{80000}{Gas} and the \texttt{submitBlock} function which uses \SI{240000}{Gas}. The prover do this step at most \(3\,\lceil\log(n-1)\rceil\) times.
+\end{enumerate}
+
+Hence, \textbf{the gas price to pay to verify a transaction} using the mitigated \FC\ protocol is given by:
+\[\num{400000} + 3\,\lceil\log(n-1)\rceil\,\num{80000}.\]
+As of 2016, according to one of the authors of BTC-Relay, adding a new header costs around \SI{10000}{Gas} \cite{BTCGas}. We can thus numerically compute \(n\) so that the mitigated version of \FC\ improves BTC-Relay in terms of gas costs. This is shown on \autoref{figure:gascosts}.
+
+\begin{figure}[ht]
+    \centering
+    \begin{tikzpicture}
+        \begin{axis}[grid=major,
+            xlabel={\(n\)},
+            ylabel={Gas},
+            legend entries={BTC-Relay, Mitigated \FC},
+            no marks,
+            legend style={at={(0,1)},anchor=north west},
+            width=\figurewidth\textwidth
+        ]
+            \addplot table[x index=0, y index=1]{data/gas_costs.txt};
+            \addplot table[x index=0, y index=2]{data/gas_costs.txt};
+        \end{axis}
+    \end{tikzpicture}
+    \caption{Comparison between BTC-Relay and our mitigated \FC\ implementation in terms of gas used as a function of the total length of the chain. The graph shows that rather quickly, in spite of the high gas costs to add a block header individually, the logarithmic number of blocks sampled by \FC\ allows it to be more concise than its predecessor.}
+    \label{figure:gascosts}
+\end{figure}

@@ -8,7 +8,7 @@
                 tick label style={major tick length=0pt},
                 colorbar,
                 colorbar style={
-                    title=\gls{psuccess},
+                    title=\(p_{\text{success}}\),
                     yticklabel style={
                         /pgf/number format/.cd,
                             fixed,
@@ -23,8 +23,8 @@
                 xmax=13,
                 ymin=2,
                 ymax=51,
-                xlabel=\gls{Fbar},
-                ylabel=\(\gls{n} - \gls{m}\),
+                xlabel=\(\overline{F}\),
+                ylabel=\(n - m\),
                 extra y ticks={2},
                 width=.85\textwidth
             ]
@@ -35,7 +35,7 @@
             };
             \end{axis}
         \end{tikzpicture}
-        \caption{Probability of success for \(\gls{mu}=50\%\)}
+        \caption{Probability of success for \(\mu=50\%\)}
     \end{subfigure}
     ~
     \begin{subfigure}[b]{0.45\textwidth}
@@ -46,7 +46,7 @@
                 tick label style={major tick length=0pt},
                 colorbar,
                 colorbar style={
-                    title=\gls{psuccess},
+                    title=\(p_{\text{success}}\),
                     yticklabel style={
                         /pgf/number format/.cd,
                             fixed,
@@ -61,8 +61,8 @@
                 xmax=32,
                 ymin=2,
                 ymax=51,
-                xlabel=\gls{Fbar},
-                ylabel=\(\gls{n} - \gls{m}\),
+                xlabel=\(\overline{F}\),
+                ylabel=\(n - m\),
                 extra y ticks={2},
                 width=.85\textwidth
             ]
@@ -73,7 +73,7 @@
             };
             \end{axis}
         \end{tikzpicture}
-        \caption{Probability of success for \(\gls{mu}=25\%\)}
+        \caption{Probability of success for \(\mu=25\%\)}
     \end{subfigure}
 
     \begin{subfigure}[b]{0.45\textwidth}
@@ -84,7 +84,7 @@
                 tick label style={major tick length=0pt},
                 colorbar,
                 colorbar style={
-                    title=\gls{psuccess},
+                    title=\(p_{\text{success}}\),
                     yticklabel style={
                         /pgf/number format/.cd,
                             fixed,
@@ -99,8 +99,8 @@
                 xmax=87,
                 ymin=2,
                 ymax=51,
-                xlabel=\gls{Fbar},
-                ylabel=\(\gls{n} - \gls{m}\),
+                xlabel=\(\overline{F}\),
+                ylabel=\(n - m\),
                 extra y ticks={2},
                 width=.85\textwidth
             ]
@@ -111,7 +111,7 @@
             };
             \end{axis}
         \end{tikzpicture}
-        \caption{Probability of success for \(\gls{mu}=10\%\)}
+        \caption{Probability of success for \(\mu=10\%\)}
     \end{subfigure}
     ~
     \begin{subfigure}[b]{0.45\textwidth}
@@ -122,7 +122,7 @@
                 tick label style={major tick length=0pt},
                 colorbar,
                 colorbar style={
-                    title=\gls{psuccess},
+                    title=\(p_{\text{success}}\),
                     yticklabel style={
                         /pgf/number format/.cd,
                             fixed,
@@ -137,8 +137,8 @@
                 xmax=915,
                 ymin=2,
                 ymax=51,
-                xlabel=\gls{Fbar},
-                ylabel=\(\gls{n} - \gls{m}\),
+                xlabel=\(\overline{F}\),
+                ylabel=\(n - m\),
                 extra y ticks={2},
                 width=.85\textwidth
             ]
@@ -149,9 +149,9 @@
             };
             \end{axis}
         \end{tikzpicture}
-        \caption{Probability of success for \(\gls{mu}=1\%\)}
+        \caption{Probability of success for \(\mu=1\%\)}
     \end{subfigure}
-    \caption{Probability of success of the \cs\ attack as a function of \gls{Fbar} and \(\gls{n}-\gls{m}\) for different computational powers \gls{mu}}
+    \caption{Probability of success of the \cs\ attack as a function of \(\overline{F}\) and \(n-m\) for different computational powers \(\mu\) for the direct setup.}
     \label{figure:heatmapsproba}
 \end{figure}
 
@@ -159,9 +159,9 @@
     \centering
     \begin{tikzpicture}
         \begin{axis}[grid=major,
-            xlabel={\gls{psuccess}},
+            xlabel={\(p_{\text{success}}\)},
             ylabel={Number of blocks},
-            legend entries={\(\gls{mu}=50\%\), \(\gls{mu}=33\%\), \(\gls{mu}=25\%\)},
+            legend entries={\(\mu=50\%\), \(\mu=33\%\), \(\mu=25\%\)},
             no marks,
             legend style={at={(0,1)},anchor=north west},
             width=\figurewidth\textwidth
@@ -171,6 +171,6 @@
             \addplot table[x index=0, y index=1]{data/first_setup_appendix/first_setup_final_25.txt};
         \end{axis}
     \end{tikzpicture}
-    \caption{Number of blocks to wait as a function of the desired probability of success for different computational powers for the first setup for \(\gls{delta}=2^{-10}\)}
+    \caption{Total time (in blocks) between the moment when the adversary began to try to mine the forking block and the moment they ask for transaction inclusion verification as a function of the desired probability of success for different computational powers for the direct setup for \(\delta=2^{-10}\).}
     \label{figure:finalprobafirstsetup}
 \end{figure}

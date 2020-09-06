@@ -2,19 +2,14 @@ The probability that the \textit{chain-sewing} attack succeeds has been computed
 
 The thing is, since the adversary can now merge its fork to the main chain from the MMR point of view, it is not true that this strategy is optimal anymore. The fork can be both very short and very old, which wasn't the case when \FC\ is deployed as a soft fork or as a hard fork.
 
- In \autoref{section:attack}, we saw that the only way the client has to catch an adversary executing a \cs\ attack on \FC\ deployed on a velvet fork was to sample the merging block \(\Cindex{m}\) and the block just before, that is \(\Cindex{m-1}\).
+In \autoref{section:attack}, we saw that the only ways the client has to catch an adversary executing a \cs\ attack on \FC\ deployed on a velvet fork was either to sample the merging block \(\Cindex{m}\) and the block just before, that is \(\Cindex{m-1}\) or to sample a fake block. However, we also show that the probability for a fake block to be sampled can be chosen arbitrarily small by the adversary.
     
-Hence, our goal is to modify the \FC\ protocol so that not only it is still impossible for an adversary to have some fork accepted by the client, like in the first version of \FC\ described in \cite{\FCCite}, but it should also be impossible to run a \cs\ attack against it when deployed on a velvet fork.
+Hence, our goal is to modify the \FC\ protocol so that not only it is still impossible for an adversary to have an unclosed fork accepted by the client, like in the first version of \FC\ described in \cite{\FCCite}, but it should also be impossible to run a \cs\ attack against it when deployed on a velvet fork.
 
 In this section, we aim to describe what changes to the protocol one may bring to \FC\ so that it is resistant to both these attacks. It is however important to note that this corrected version should only be used for deploying \FC\ on a velvet fork. Should it be deployed on a hard or a soft fork, the original implementation of \FC\ described in \cite{\FCCite} has more interesting properties, as discussed in \autoref{section:comparison}.
 
-\section{The Binary Search as a substitute for \FC's optimal random sampling}
-   The Binary Search strategy is conceptually simple. According to the protocol described in \cite{\FCCite}, since by assumption at least one of the provers is honest, the client can compare their answers. For a given block, both the adversary and the honest prover will provide a MMR proof of inclusion for this block consistent with the MMR root they sent. The goal of the client is then to derive whether this block lies before or after the forking block according to the proofs they receive.
-   
-   This solution, originally proposed in the original \FC\ paper \cite{\FCCite}, does not work anymore on a velvet fork. Indeed, it is possible for the adversary to set up a situation such that there is no difference between sampling a block before the forking block and after the merging one. If they decide to include in their MMR only blocks of their own, by declaring as legacy every other block, then in any case, both provers will consider the other one's blocks as legacy and behave accordingly. However, doing so means that the adversary would have a very short MMR regarding to the total blockchain length, which may seem suspicious to the client. It may be however quite difficult to quantify. Furthermore, this approach has the disadvantage of being interactive, resulting in higher delays in the transaction inclusion verification, as stated in \cite{\FCCite}.
-
-\section{Providing \FC\ with an additional check}
-    Two things are to be taken into account: not only do we want to prevent the original attack (having a fork accepted) to be possible, but we also want the \cs\ attack not to be possible. Solving the former is actually easy: we can simply use the original \FC\ protocol to prevent it, since it has been designed for this purpose. If we manage to find some additional checks that the client can perform to avoid the \cs\ attack without asking the provers for much more data, then we are fine.
+\section{Providing \FC\ with an additional check to force the adversary to mine more blocks}
+    \paragraph{The possible situations against which the client must fight.} Two things are to be taken into account: not only do we want to prevent the original attack (having a fork accepted) to be possible, but we also want the \cs\ attack not to be possible. Solving the former is actually easy: we can simply use the original \FC\ protocol to prevent it, since it has been designed for this purpose. If we manage to find some additional checks that the client can perform to avoid the \cs\ attack without asking the provers for much more data, then we are fine.
     
     As a recall, the very goal of \FC\ is to prove the inclusion of a transaction within a chain. In our case, this sums up to prove the inclusion of the block containing this transaction within the chain. Since at least one of the provers is honest, two cases are non-trivial:
     
@@ -22,10 +17,169 @@ In this section, we aim to describe what changes to the protocol one may bring t
         \item the adversary wants to perform a double-spent transaction and wants to have a block in a fork accepted by the client;
         \item the adversary wants the client to think that this block is not included in the blockchain while it actually is.
     \end{itemize}
+    
+    Actually, these two cases boil down to the single same situation: the adversary wants a block that is not in the main chain to be accepted by the client. Indeed, the only way they have to convince the client that a block is not included in the main chain is to provide the client with the block which is, according to them, in the main chain. This is not only true for the adversary: this is also what an honest prover must do when they think a block isn't included in the main chain.
    
-    Let us imagine that, along with the length of their chain and their MMR root, both provers also provide the client with the position of the block that contains the transaction within the chain. One of them will give a position, the other one will answer that they think the block is not included in the chain. The client would then ask for the \(k\) next blocks in the MMR tree of the prover that answered that the block was included in the chain, where \(k\) is some security parameter. If the block that contains the transaction to be verified is at an odd position, the client also asks for the block that comes precedes in the MMR. It is easy for the client to check that the prover actually provides them with the blocks they asked for using the MMR proofs. The greater \(k\), the more fake blocks the adversary has to include at the end of its fork, and thus the more likely it will get caught by the first step of the process. A honest prover however will have no difficulty in providing the blocks the client asked for. Hence, this solution solves both the original problem tackled in the original \FC\ paper and the \cs\ attack.
+    \paragraph{Checking the blocks that follow the one containing the transaction as a mitigation method.} A potential additional data that the client could ask for is the \(k\) next blocks that follows the one that the prover wants accepted, where \(k\) is a security parameter. If the block that contains the transaction to be verified is at an odd position, the client also asks for the block that comes precedes in the MMR. It is easy for the client to check that the prover actually provides them with the blocks they asked for using the MMR proofs. The greater \(k\), the more fake blocks the adversary has to include at the end of its fork, and thus the more likely it will get caught by the first step of the process. Plus, this means that the adversary's cost \(C\) would be increased, since the adversary would mine longer on their chain. A honest prover however will have no difficulty in providing the blocks the client asked for. Hence, this solution solves both the original problem tackled in the original \FC\ paper and the \cs\ attack theoretically.
+    
+    However, in practice, this solution does not work, because of how large \(k\) must be in order to provide sufficient security even in the \(\mu=50\%\) case. Indeed, intuitively, the adversary will include 2 additional fake blocks in their fork if \(k\) is increased by 1. Hence, modifying significantly the probability of success would require to set \(k\) to a large number, which goes against the principle of efficiency of the protocol. Furthermore, the adversary still has the possibility to wait long enough to arbitrarily reduce the probability of a fake block being sampled. The only thing this solution truly does is significantly increasing the adversary's cost, which is already high. Indeed, assuming that the adversary sets \(\overline{t}=+\infty\), we have:
+    \[C = \num{73918.125}\,(1+k).\]
+    Hence, the security parameter \(k\) allows to multiply the cost that an adversary must pay to put the attack in place by a factor \(k + 1\). This strategy does not solve the problem of the \cs\ attack however.
+\section{The Binary Search as a substitute for \FC's optimal random sampling}
+   \paragraph{Principles of the Binary Search.} The Binary Search strategy is conceptually simple. According to the protocol described in \cite{\FCCite}, since by assumption at least one of the provers is honest, the client can compare their answers. For a given block, both the adversary and the honest prover will provide a MMR proof of inclusion for this block consistent with the MMR root they sent. The goal of the client is then to derive whether this block lies before or after the forking block according to the proofs they receive.
+   
+   When originally described in the original \FC\ paper, \citeauthor{\FCCite} wanted to localise the forking block \(f\), so that the client can uniformly sample from the remaining of the chain. However, this is not how we want to use the Binary Search. We know that whatever the number of fake blocks the adversary includes in its chain, there will always be an inconsistency between the merging block and the block just before. Furthermore, since both provers don't agree on whether the block to be verified is present in the chain, it means that the client knows that at this block lies within an adversary's fork.
+   
+   \paragraph{The two different parts of the mitigated \FC\ protocol.} Two cases are to be considered:
+   
+   \begin{enumerate}
+       \item The adversary already closed their fork using a merging block.
+       \item The adversary did not close their fork.
+   \end{enumerate}
+   
+   Since the client knows a starting position where the adversary has forked the chain, he can make a double Binary Search: one towards the end of the chain, to find out whether the adversary has closed their fork or not, and one towards the beginning of the chain, to find out where does the fork starts. If the adversary already closed their fork, then comparing the merging block and the one just before will allow to figure out which prover is the honest one. Note that it doesn't matter if the client doesn't find the merging block related to the block the adversary wanted verified: the goal is only to find one merging block. If the adversary did not close their fork yet however, then the situation is the one \FC\ has been designed against. Hence, the client can run the \FC\ protocol on the determined fork portion to try to sample the fake blocks the adversary has included in it. Note that since the client knows both the length of the chain and the position of the forking block, it knows the length of the fork. Depending on this length, it can choose between:
+   
+   \begin{itemize}
+       \item sampling the whole fork;
+       \item sampling uniformly blocks within the fork;
+       \item running the \FC\ protocol on the fork portion.
+   \end{itemize}
+   
+   This strategy of determining the position of the forking block and then to sample uniformly from the fork has been considered by \citeauthor{\FCCite} in the original \FC\ paper \cite{\FCCite}. However, they did not go for this solution because of its inherent interactivity between the client and the prover. Because of this, they designed the \FC\ protocol with this random sampling, which is optimal without knowing where the forking block is.
+   
+   The client has to choose which solution to pick according to the fork length. For a very short fork, it is more secure to sample the whole fork, since the probability of catching the adversary is 1. If the fork is too long, it can either sample \(k\) blocks uniformly, \(k\) being a security parameter that the client chooses, or run the \FC\ protocol. Once again, the client has to make its choice by doing a compromise between security and efficiency. It is also possible to sample more blocks than the \FC\ protocol advises
+   
+   \paragraph{Constraints due to the velvet fork and cross-chain relays settings.} However, two things are to be taken into account in this case. First of all, in order to prevent the \cs\ attack, the mitigated protocol has to be interactive, at least for the first part of the protocol. Furthermore, our goal is to implement \FC\ as a cross-chain relay on a Smart Contract. This does mean that it is not possible to store the information necessary to derive the correct sampling distribution. Indeed, our implementation can't have access to the cumulated difficulty of the Bitcoin protocol, and as such can't compute \FC's sampling distribution.
+   
+   For these reasons, our implementation always go for an uniform sampling, potentially sampling every block in the fork if there's only few blocks in it.
+   
+   This solution covers both the initial situation \FC\ has been designed against and the \cs\ attacks. It has however several drawbacks that are to be discussed in \autoref{section:comparison}.
+   
+   \section{Pseudo-code for of the implementation of the mitigated \FC\ protocol}
+   
+   \paragraph{Description of the prover-verifier model.} We consider the same setup that \citeauthor{\FCCite} considered in the original \FC\ paper \cite{\FCCite}: two provers and one verifier. The provers are Bitcoin full nodes while the verifier is a Smart Contract deployed on the Ethereum blockchain. Each prover can, and must, call functions from this Smart Contract to prove the inclusion of a transaction within the main chain. This situation is shown on \autoref{figure:protocol}.
+   
+   \begin{figure}
+        \centering
+        \begin{tikzpicture}[thick,
+        commentl/.style={align=right},
+        commentr/.style={align=left},]
+            \node[] (init) {Prover (Bitcoin node)};
+            \node[right=1cm of init] (recv) {Verifier (Smart Contract)};
+            
+            \draw[->] ([yshift=-.5cm]init.south) coordinate (commitsbegin) -- ([yshift=-1cm]commitsbegin-|recv) coordinate (commitsend) node[pos=.5, above, sloped] {\texttt{commitment}};
+            
+            \draw[->] (commitsend-|init) coordinate (getnextbegin) -- ([yshift=-1cm]getnextbegin-|recv) coordinate (getnextend) node[pos=.5, above, sloped] {\texttt{getNext}};
+            
+            \draw[->] (getnextend-|init) coordinate (submitblockbegin) -- ([yshift=-1cm]submitblockbegin-|recv) coordinate (submitblockend) node[pos=.5, above, sloped] {\texttt{submitBlock}};
+            
+            \draw[->] (submitblockend-|init) coordinate (getnext2begin) -- ([yshift=-1cm]getnext2begin-|recv) coordinate (getnext2end) node[pos=.5, above, sloped] {\texttt{getNext}};
+            
+            \draw[thick, shorten >= -.3cm] (init) -- (init|-getnext2end);
+            \draw[thick, shorten >= -.3cm] (recv) -- (recv|-getnext2end);
+
+            \node[left = 2mm of commitsbegin.west, commentl]{Sends commits};
+            \node[right = 2mm of commitsend.west, commentr]{Saves commits};
+            \node[left = 2mm of getnextbegin.west, commentl]{Queries next block};
+            \node[right = 2mm of getnextend.west, commentr]{Sets next block};
+            \node[left = 2mm of submitblockbegin.west, commentl]{Submits block};
+            \node[right = 2mm of submitblockend.west, commentr]{Saves block};
+            \node[left = 2mm of getnext2begin.west, commentl]{Queries next block};
+            \node[right = 2mm of getnext2end.west, commentr]{Sets next block};
+        \end{tikzpicture}
+        \caption{Outline of the \FC\ mitigated protocol. The client actually never sends anything to the prover: either the prover submits a proof, which the verifier saves on the Ethereum blockchain, or it queries the verifier for the next block to sample. Upon receiving this query, the verifier modifies the state of the Blockchain, so that the prover can know which block is to be provided thereafter. The protocol ends as soon as the prover gets a return code instead of a new block to sample after having called \texttt{getNext}.}
+        \label{figure:protocol}
+   \end{figure}
+   
+   Once the protocol is over, both provers can check whether the transaction has been accepted. The protocol that the provers follow is described in \autoref{algorithm:prover}. We assume that both provers know that they must prove the inclusion of a transaction TX supposedly contained in block number \(k\). Note that unless this is specified, a prover that must submit a block header must also submit the raw coinbase transaction along with a Merkle Proof of the inclusion of this transaction in this block, since this is required to get the MMR root present in the block. For simplicity, we assume that the MMR root, if present, is written in the coinbase field of the generation transaction. If the generation transaction is not sent along with the block header, then the block is considered as a legacy block from the prover's point of view. Finally, we assume that the transaction id TX is sent along with every function call, so that a prover can try to prove the inclusion of multiple transactions in parallel.
+   
+   \begin{algorithm}[hb]
+    \SetKwFunction{KwCommitment}{commitment}
+    \SetKwFunction{KwVerify}{verify()}
+    \SetKwFunction{KwGetNext}{getNext()}
+    \SetKwFunction{KwGetNextSecond}{getNextSecond()}
+    \SetKwFunction{KwSubmitBlock}{submitBlock}
+    \SetKw{KwIn}{in}
+    \SetKw{KwTrue}{true}
+    Commit to the chain by calling the \KwCommitment function with the following parameters:
+        \begin{itemize}
+            \item the \(k\)-th block header;
+            \item the MMR proof \(\Pi_k\) of inclusion of the \(k\)-th block;
+            \item the transaction TX to be verified if the prover wants to prove the inclusion of a transaction, nothing otherwise;
+            \item the Merkle proof \(\Pi_{\text{TX}}\) of the inclusion of the transaction within the \(k\)-th block if the prover wants to prove the inclusion of a transaction, nothing otherwise;
+            \item the height \(n\) of the last block containing a MMR root;
+            \item the MMR root associated to its chain.
+        \end{itemize}
+    \While{\(\KwVerify = -1\)}{
+        Wait for the other prover to submit their proof.
+    }
+    \uIf{\(\KwVerify = 0\)}{
+        \While{\KwTrue}{
+            \While{\((i\gets\KwGetNext) = -1\)}{
+                Wait for the other prover to submit their block.
+            }
+            \uIf{\(i = -2\)}{
+                The protocol is over because the previous proof hasn't been accepted.
+            }
+            \uElseIf{\(i = -3\)}{
+                The protocol is over because the other prover submitted a wrong proof.
+            }
+            \uElseIf{\(i = -4\)}{
+                The protocol couldn't determine which prover was dishonest and has to be run once again.
+            }
+            \Else{
+                Call the \KwSubmitBlock function with the following parameters:
+                \begin{itemize}
+                    \item the \(i\)-th block header;
+                    \item the MMR proof \(\Pi_i\) of inclusion of the \(i\)-th block.
+                \end{itemize}
+            }
+        }
+    }
+    \Else{
+        The transaction has been accepted because both provers agreed.
+    }
+    \caption{Provers' protocol for mitigated \FC}
+    \label{algorithm:prover}
+\end{algorithm}
+
+The idea behind this pseudo-code is actually rather simple. Firstly, the prover commits its chain and waits for another prover to commit their chain. If both agree, the protocol accepts the transaction and stops. If they don't however, then both of them query the verifier for the next block to be provided until they receive a return code instead of a block height. There are 4 different return codes:
+
+\begin{itemize}
+    \item \textbf{the -1 return code} indicates that the other prover hasn't submitted their proofs yet. Since this is required to determine the next block to be sampled, the prover has no choice but to wait for the other one to submit their proofs.
+    \item \textbf{the -2 return code} indicate that the prover getting this return code has been designated as dishonest. Two reasons can explain this: either a proof of inclusion they submitted was wrong, or no fake blocks were detected for both provers, and the other prover had a longer chain. If the provers are not distinguishable from each other, the verifier will deny the transaction by default and return a return code accordingly to the prover's commit: -2 if they wanted to prove the inclusion of the transaction, -3 otherwise.
+    \item \textbf{the -3 return code} is the complementary of the -2 return code. It indicates that the protocol designate the prover receiving this return code as honest.
+    \item \textbf{the -4 return code} indicates that the protocol wasn't able to distinguish the honest prover from the dishonest one. This can happen if the dishonest prover has a short fork at the end of the chain without any fake blocks. Hence, their chain is as valid as the other one.
+\end{itemize}
+
+The client has basically 3 external functions:
+
+\begin{itemize}
+    \item \textbf{the \texttt{commitment} function} allows the user to commit to their chain;
+    \item \textbf{the \texttt{verify} function} is only used to determine whether both provers agree at the beginning of the protocol;
+    \item \textbf{the \texttt{getNext} function} tells the prover which blocks they must provide the client with or terminate the protocol with a return code. It uses the Binary Search to look for the merging block in a first time and, if this proves unsuccessful, looks for the forking block then launches the second part of the protocol.
+\end{itemize}
 
 \section{Comparison between the original \FC\ implementation and the corrected version}
     \label{section:comparison}
-\section{A robust implementation of \FC\ deployed as a velvet fork}
-
+    The mitigated version of \FC\ against \cs\ attacks is at least as secure as the original \FC\ protocol against an adversary who hasn't closed their fork and totally secure against \cs\ attacks, that is, it prevents \cs\ attacks with probability 1.
+    
+    This implementation has however two properties that are to be compared to the original \FC\ protocol: efficiency and interactivity.
+    
+    \subsection{Efficiency}
+        The efficiency of the mitigated \FC\ protocol depends on the adversary's fork strategy. If they chose to close their fork, then the client will figure out which prover is honest after having sent, in the worst case a total of \(1 + \left\lceil\log_2(n-1)\right\rceil\) block headers along with their MMR proof to find the merging block. However, since the client also looks for the forking block, it doubles the number of block headers it asks for. In total, the client will ask for \(2\,\left\lceil\log_2(n-1)\right\rceil\) which matches the complexity of the original \FC\ protocol. It is possible to lower this number to \(\left\lceil\log_2(n-1)\right\rceil\) by only looking for the merging block in a first time and, if this proves unsuccessful, starting looking for the forking block. This however has the drawback of increasing the interactivity between the client and the prover, which results in higher latencies and costs in proof verification.
+        
+        If the adversary did not close their fork however, then the mitigated \FC\ protocol will begin by asking for \(2\,\left\lceil\log_2(n-1)\right\rceil\) block headers to find the forking block. Once this is done, the number of block headers asked by the client will be logarithmic in the size of the chain, as described in the original \FC\ paper \cite{\FCCite}.
+        
+        Hence, overall, the efficiency of the mitigated \FC\ protocol matches the one of the original \FC\ protocol.
+        
+        Furthermore, this mitigation can also be used to verify the inclusion of transaction within the chain if \FC\ is deployed as a soft or hard fork. However, the non-interactivity of the original \FC\ protocol makes him way more suitable for these use cases.
+    
+    \subsection{Interactivity}
+        The biggest drawback of this implementation is the inherent interactivity it requires. The original \FC\ protocol has a very limited interactivity by design: only one call from the prover to provide the client with their proof.
+        
+        Our mitigated version however, as stated above, have \(2\,\left\lceil\log_2(n-1)\right\rceil\) calls to the client to end the first part of the protocol and another \(\lceil\log(n)\rceil\) calls for the second part of the protocol.
+        
+        This is a huge drawback compared to the implementation of \FC\ on a hard or a soft fork. Not only this induces delays in the transaction verification, since there is a lot more network traffic than in the original version, but this is also more expensive: each call to the Smart Contract costs gas. Even though the original \FC\ version would also costs gas, the fact that it samples a third of what the mitigated version samples also means that its cost is three times lower.
+        
+        Note that this interactivity is the direct cause of the fact that no other method was found to find the merging block. Were it possible to include this check of the merging block within \FC's random sampling, the protocol could be made non-interactive, instantly erasing of all its drawbacks.

@@ -1,0 +1,5 @@
+In this paper we showed why implementing \FC\ as a velvet fork, though it seems to be a convenient way to do it, presents a lot of risks if done like presented in the original \FC\ paper \cite{\FCCite}. We showed that preventing \cs\ attacks on \FC\ when implemented as a velvet comes at the price of the non-interactivity of the protocol, which is one of \FC's strengths.
+
+Our implementation of a \FC\ version resistant to \cs\ attack is to be considered as a Proof of Concept, and loads of things are to be optimised if it were to be used on a real-world case. Currently, the interactivity of the protocol as a cross-chain relay costs too much Ethereum gas to be worth the use. Furthermore, if \FC\ were to be deployed as a soft or hard fork, the original version would have to be used because of its non-interactivity.
+
+There is to our knowledge no proof that no non-interactive version of \FC\ that could tackle the problem of \cs\ attack exist. It is highly desirable, that one finds such a way, since it would allow the deployment of \FC\ as a velvet fork.

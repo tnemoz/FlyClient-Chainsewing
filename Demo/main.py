@@ -1,51 +1,123 @@
+from enum import Enum
 import os
+from threading import Thread, Lock
 
 import solcx
+from termcolor import cprint
 from web3 import HTTPProvider, Web3
 
-from create_opened_fork_chains import honest_hashes, adversary_hashes, adversary_headers, honest_headers, adversary_blocks
-#from create_closed_fork_chains import honest_hashes, adversary_hashes, adversary_headers, honest_headers, adversary_blocks
+#from create_opened_fork_chains import honest_hashes, adversary_hashes, adversary_headers, honest_headers, adversary_blocks
+from create_closed_fork_chains import honest_hashes, adversary_hashes, adversary_headers, honest_headers, adversary_blocks
 from mmr import bitcoin_hash, Mmr
 
-class Node:
-    def __init__(self, account, hashes, headers):
+
+class Level(Enum):
+    NORMAL = 0
+    ERROR = 1
+    WARNING = 2
+    SUCCESS = 3
+
+
+class Node(Thread):
+    def __init__(self, account, hashes, headers, height, txId, is_adversary, w3, contract, print_lock):
         self.account = account
         self.mmr = Mmr(hashes)
         self.headers = headers[:]
         self.next = 0
+        self.w3 = w3
+        self.print_lock = print_lock
+        self.contract = contract
+        self.txId = txId
+        self.is_adversary = is_adversary
+        self.is_waiting = False
+        self.commit(height)
+        super().__init__()
 
-    def commit(self, height, txId, is_adversary):
-        print(f"[TX {txId.hex()}][*] Account {self.account} is committing their chain...")
+    def commit(self, height):
+        self.print("Beginning to commit their chain...")
         containsTx = self.headers[height - 1]
         merkleProof = b""
-        indexTx = 1 if is_adversary else 0
+        indexTx = 1 if self.is_adversary else 0
         mmrProof = bytes.fromhex(self.mmr.get_path(height))
         chainLength = self.mmr.n
         mmrRoot = bytes.fromhex(self.mmr.root)
-        contract.functions.commitment(containsTx, height, txId, merkleProof, indexTx, mmrProof, chainLength, mmrRoot).transact({'from' : self.account})
-        print("[TX {txId.hex()}][+] Account {self.account} has finished to commit their chain.")
+        self.w3.eth.waitForTransactionReceipt(
+            self.contract.functions.commitment(
+                containsTx, 
+                height,
+                self.txId,
+                merkleProof,
+                indexTx,
+                mmrProof,
+                chainLength,
+                mmrRoot
+            ).transact({'from' : self.account})
+        )
+        self.print("Chain commitement is done.", Level.SUCCESS)
 
-    def submit_block(self, txId):
+    def submit_block(self):
         assert self.next > 0, "Last return was a return code."
-        print(f"[TX {txId.hex()}][*] Account {self.account} is submitting block at height {self.next}...")
-        contract.functions.submitBlock(txId, self.headers[self.next - 1], bytes.fromhex(self.mmr.get_path(self.next))).transact({"from": self.account})
-        print(f"[TX {txId.hex()}][+] Account {self.account} has submitted block at height {self.next}")
+        self.print(f"Submitting block at height {self.next}...")
+        contract.functions.submitBlock(
+            self.txId,
+            self.headers[self.next - 1],
+            bytes.fromhex(self.mmr.get_path(self.next))
+        ).transact({"from": self.account})
+        self.print(f"Submitted block at height {self.next}.", Level.SUCCESS)
 
-    def get_next(self, txId):
-        print(f"[TX {txId.hex()}][*] Account {self.account} querying next block to sample...")
-        receipt = w3.eth.waitForTransactionReceipt(contract.functions.getNext(txId).transact({"from": self.account}))
+    def get_next(self):
+        self.print("Querying next block to sample...")
+        receipt = w3.eth.waitForTransactionReceipt(
+            contract.functions.getNext(self.txId).transact({"from": self.account})
+        )
         # Easy to convert if positive number
-        print("Received data:", receipt["logs"][0]['data'])
+        self.print(f"Received data from getNext: {receipt['logs'][0]['data']}.")
         data = int(receipt['logs'][0]['data'], 16)
         self.next = data if data < pow(2, 255) else data - pow(2, 256)
 
         if self.next == -2:
-            print(f"[TX {txId.hex()}][-] Protocol is over for account {self.account}. One of the submitted proof was wrong.")
+            self.print("Protocol is over: one of the submitted proof was wrong.", Level.ERROR)
         elif self.next == -3:
-            print(f"[TX {txId.hex()}][+] Protocol is over for account {self.account}. One of the other prover's submitted proof was wrong.")
-        elif self.next == -1:
-            print(f"[TX {txId.hex()}][*] The other prover hasn't submitted all their proofs yet..")
-        
+            self.print("Protocol is over: one of the other prover's submitted proof was wrong.", Level.SUCCESS)
+        elif self.next == -1 and not self.is_waiting:
+            self.print("The other prover hasn't submitted all their proofs yet.", Level.WARNING)
+            self.is_waiting = True
+        elif self.next == -4:
+            self.print("Protocol is over: coudl'tn determine which prover is the honest one.", Level.ERROR)
+        else:
+            self.print(f"Received next block to be sampled: {self.next}.", Level.SUCCESS)
+            self.is_waiting = False
+    
+    def print(self, message, level=Level.NORMAL):
+        prefix = "Adversary" if self.is_adversary else "Honest"
+
+        if level == Level.NORMAL:
+            to_print = f"[{prefix} ] {message}"
+            color = None
+        elif level == Level.ERROR:
+            to_print = f"[{prefix} -] {message}"
+            color = "red"
+        elif level == Level.WARNING:
+            to_print = f"[{prefix} *] {message}"
+            color = "yellow"
+        elif level == Level.SUCCESS:
+            to_print = f"[{prefix} +] {message}"
+            color = "green"
+
+        self.print_lock.acquire()
+        cprint(to_print, color)
+        self.print_lock.release()
+    
+    def run(self):
+        while True:
+            self.get_next()
+
+            if self.next == -1:
+                continue
+            elif self.next < 0:
+                return
+            else:
+                self.submit_block()
 
 w3 = Web3(HTTPProvider("http://127.0.0.1:8545"))
 w3.eth.defaultAccount = w3.eth.accounts[0]
@@ -75,8 +147,31 @@ contract = w3.eth.contract(
 HEIGHT = 101
 TXID = adversary_blocks[HEIGHT - 1][35+32:35:-1] 
 
-adversary = Node(w3.eth.accounts[1], adversary_hashes, adversary_headers)
-honest = Node(w3.eth.accounts[2], honest_hashes, honest_headers)
+print_lock = Lock()
+adversary = Node(
+    w3.eth.accounts[1],
+    adversary_hashes,
+    adversary_headers, 
+    HEIGHT,
+    TXID,
+    True,
+    w3,
+    contract,
+    print_lock
+)
+honest = Node(
+    w3.eth.accounts[2],
+    honest_hashes,
+    honest_headers,
+    HEIGHT,
+    TXID,
+    False,
+    w3,
+    contract,
+    print_lock
+)
 
-adversary.commit(HEIGHT, TXID, is_adversary=True)
-honest.commit(HEIGHT, TXID, is_adversary=False)
+adversary.start()
+honest.start()
+adversary.join()
+honest.join()

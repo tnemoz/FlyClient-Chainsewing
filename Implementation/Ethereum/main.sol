@@ -394,9 +394,21 @@ contract FlyClient {
     /// @return -1 if the other prover hasn't submitted their proofs yet, -2 if a proof that the caller submitted was invalid,
     /// -3 if a proof that the other prover submitted was invalid, -4 if the prover must call the getNextSecond function.
     function getNext(bytes32 txId) public returns (int72) {
-        require(!hasResultBeenSet[txId], "A result already has been determined for this transaction.");
 	uint8 position = getPosition(txId, msg.sender);
         require(position != 2, "Caller hasn't committed their chain yet.");
+	
+	if (hasResultBeenSet[txId]) {
+	    if (result[txId] == commitments[txId][1-position].txExists) {
+	        emit GetNext(-2);
+		return -2;
+	    }
+	    else {
+		emit GetNext(-3);
+	        return -3;
+	    }
+	    delete proversPositions[txId];
+	}
+
         ChainState storage state = chainsStates[txId][position];
         
         // If the prover hasn't submitted all their proofs, return the first block that they must provide.
@@ -666,7 +678,6 @@ contract FlyClient {
     /// @param txId The hash of the transaction we were working with.
     function cleanup(bytes32 txId) private {
         require(hasResultBeenSet[txId], "No result has been found for this transaction.");
-        delete proversPositions[txId];
         delete commitments[txId];
         delete chainsStates[txId];
         delete previousProofsValid[txId];

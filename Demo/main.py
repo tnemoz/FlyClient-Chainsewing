@@ -1,6 +1,5 @@
 from enum import Enum
 import os
-from random import randint
 from threading import Thread, Lock
 
 import solcx
@@ -28,6 +27,7 @@ class Node(Thread):
         self.account = account
         self.mmr = Mmr(hashes)
         self.headers = headers[:]
+        self.gases = []
         self.next = 0
         self.w3 = w3
         self.print_lock = print_lock
@@ -51,7 +51,7 @@ class Node(Thread):
         mmrProof = bytes.fromhex(self.mmr.get_path(height))
         chainLength = self.mmr.n
         mmrRoot = bytes.fromhex(self.mmr.root)
-        self.w3.eth.waitForTransactionReceipt(
+        receipt = self.w3.eth.waitForTransactionReceipt(
             self.contract.functions.commitment(
                 containsTx, 
                 height,
@@ -63,17 +63,19 @@ class Node(Thread):
                 mmrRoot
             ).transact({'from' : self.account})
         )
-        self.print("Chain commitement is done.", Level.SUCCESS)
+        self.gases.append(receipt.gasUsed)
+        self.print(f"Chain commitement is done. Gas used: {receipt.gasUsed}", Level.SUCCESS)
 
     def submit_block(self):
         assert self.next > 0, "Last return was a return code."
         self.print(f"Submitting block at height {self.next}...")
-        self.contract.functions.submitBlock(
+        receipt = self.w3.eth.waitForTransactionReceipt(self.contract.functions.submitBlock(
             self.txId,
             self.headers[self.next - 1],
             bytes.fromhex(self.mmr.get_path(self.next))
-        ).transact({"from": self.account})
-        self.print(f"Submitted block at height {self.next}.", Level.SUCCESS)
+        ).transact({"from": self.account}))
+        self.gases.append(receipt.gasUsed)
+        self.print(f"Submitted block at height {self.next}. Gas used: {receipt.gasUsed}", Level.SUCCESS)
 
     def get_next(self):
         self.print("Querying next block to sample...")
@@ -84,18 +86,19 @@ class Node(Thread):
         self.print(f"Received data from getNext: {receipt['logs'][0]['data']}.")
         data = int(receipt['logs'][0]['data'], 16)
         self.next = data if data < pow(2, 255) else data - pow(2, 256)
+        self.gases.append(receipt.gasUsed)
 
         if self.next == -2:
-            self.print("Protocol is over: one of the submitted proof was wrong.", Level.ERROR)
+            self.print(f"Protocol is over: one of the submitted proof was wrong. Gas used: {receipt.gasUsed}", Level.ERROR)
         elif self.next == -3:
-            self.print("Protocol is over: one of the other prover's submitted proof was wrong.", Level.SUCCESS)
+            self.print(f"Protocol is over: one of the other prover's submitted proof was wrong. Gas used: {receipt.gasUsed}", Level.SUCCESS)
         elif self.next == -1 and not self.is_waiting:
-            self.print("The other prover hasn't submitted all their proofs yet.", Level.WARNING)
+            self.print(f"The other prover hasn't submitted all their proofs yet. Gas used: {receipt.gasUsed}", Level.WARNING)
             self.is_waiting = True
         elif self.next == -4:
-            self.print("Protocol is over: could'tn determine which prover is the honest one.", Level.ERROR)
+            self.print(f"Protocol is over: couldn't determine which prover is the honest one. Gas used: {receipt.gasUsed}", Level.ERROR)
         else:
-            self.print(f"Received next block to be sampled: {self.next}.", Level.SUCCESS)
+            self.print(f"Received next block to be sampled: {self.next}. Gas used: {receipt.gasUsed}", Level.SUCCESS)
             self.is_waiting = False
     
     def verify(self):
@@ -108,8 +111,9 @@ class Node(Thread):
             if "A result already has been determined for this transaction." in e.args[0]["message"]:
                 return 1
             raise e
-
-        self.print(f"Received data from verify: {receipt['logs'][0]['data']}.")
+        
+        self.gases.append(receipt.gasUsed)
+        self.print(f"Received data from verify: {receipt['logs'][0]['data']}. Gas used: {receipt.gasUsed}")
         data = int(receipt['logs'][0]['data'], 16)
         data = data if data < pow(2, 255) else data - pow(2, 256)
         self.is_waiting = data != 0
@@ -118,7 +122,7 @@ class Node(Thread):
 
 
     def print(self, message, level=Level.NORMAL):
-        prefix = "Adversary" if self.is_adversary else "Honest"
+        prefix = "Adversary" if self.is_adversary else "Honest   "
 
         if level == Level.NORMAL:
             to_print = f"[{prefix}  ] {message}"
@@ -191,59 +195,31 @@ TXID = adversary_blocks[HEIGHT - 1][35+32:35:-1]
 
 print_lock = Lock()
 
-if randint(0, 1):
-    adversary = Node(
-        w3.eth.accounts[1],
-        adversary_hashes,
-        adversary_headers, 
-        HEIGHT,
-        TXID,
-        True,
-        w3,
-        contract,
-        print_lock
-    )
-    honest = Node(
-        w3.eth.accounts[2],
-        honest_hashes,
-        honest_headers,
-        HEIGHT,
-        TXID,
-        False,
-        w3,
-        contract,
-        print_lock
-    )
-else:
-    honest = Node(
-        w3.eth.accounts[2],
-        honest_hashes,
-        honest_headers,
-        HEIGHT,
-        TXID,
-        False,
-        w3,
-        contract,
-        print_lock
-    )
-    adversary = Node(
-        w3.eth.accounts[1],
-        adversary_hashes,
-        adversary_headers, 
-        HEIGHT,
-        TXID,
-        True,
-        w3,
-        contract,
-        print_lock
-    )
+adversary = Node(
+    w3.eth.accounts[1],
+    adversary_hashes,
+    adversary_headers, 
+    HEIGHT,
+    TXID,
+    True,
+    w3,
+    contract,
+    print_lock
+)
+honest = Node(
+    w3.eth.accounts[2],
+    honest_hashes,
+    honest_headers,
+    HEIGHT,
+    TXID,
+    False,
+    w3,
+    contract,
+    print_lock
+)
 
-if randint(0, 1):
-    adversary.start()
-    honest.start()
-else:
-    honest.start()
-    adversary.start()
+adversary.start()
+honest.start()
 
 adversary.join()
 honest.join()

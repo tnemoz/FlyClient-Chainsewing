@@ -13,8 +13,11 @@ contract FlyClient {
     using SafeMath for uint256;
     using BytesLib for bytes;
     
-    uint8 public constant MAX_SAMPLING_SIZE = 16;
+    // Ensures a probability of success of at least 99.9997%
+    uint8 public constant MIN_SAMPLING_SIZE = 8;
+    uint8 public constant CONFIRMATIONS = 6;
     event GetNext(int72 next);
+    event Verify(int8 is_accepted);
 
     modifier headerIs80BytesLong(bytes memory header) {
         require(header.length == 80, "Block header size different from 80 bytes.");
@@ -61,6 +64,9 @@ contract FlyClient {
     
     // Saves the positions sampled by the client.
     mapping(bytes32 => uint64[]) positions;
+
+    // Saves more efficiently whether a given height has already been sampled
+    mapping(bytes32 => mapping(uint64 => bool)) hasBeenSampled;
     
     // Saves the result of the previous protocols, which allows to delete other mappings values
     mapping(bytes32 => bool) result;
@@ -162,7 +168,7 @@ contract FlyClient {
     /// @dev There is surely a faster method by looking at the size x takes in memory in assembly.
     /// @param x The integer to compute the ceiled log2.
     /// @return res = ceil(log2(x)).
-    function ceiledLog2(uint64 x) private pure returns (uint8 res) {
+    function ceiledLog2(uint64 x) public pure returns (uint8 res) {
         assert(x >= 1);
         x -= 1;
         while (x > 0) {
@@ -295,6 +301,7 @@ contract FlyClient {
         uint64 chainLength,
         bytes32 mmrRoot
     ) public {
+	require(chainLength - height >= CONFIRMATIONS, "Not enough confirmations for this block.");
         require(containsTx.length == 80, "Block header with size different from 80 bytes.");
         require(!hasResultBeenSet[txId], "A result already has been determined for this transaction.");
         if (indexTx > 0) {
@@ -350,7 +357,9 @@ contract FlyClient {
         if (positions[txId].length == 1) {
 	    positions[txId].push(newPosition);
 	}
-
+	
+	hasBeenSampled[txId][height] = true;
+	hasBeenSampled[txId][newPosition] = true;
         previousProofsValid[txId][index] = true;
     }
     
@@ -364,16 +373,18 @@ contract FlyClient {
         require(position != 2, "Caller hasn't committed their chain yet.");
         
         if (commitments[txId][1 - position].chainLength == 0) {
-            return -1;
+            emit Verify(-1);
+	    return -1;
         }
         
         if (commitments[txId][0].txExists == commitments[txId][1].txExists) {
             hasResultBeenSet[txId] = true;
             result[txId] = commitments[txId][0].txExists;
-            cleanup(txId);
+	    emit Verify(1);
             return 1;
         }
         
+	emit Verify(0);
         return 0;
     }
     
@@ -392,38 +403,29 @@ contract FlyClient {
     /// the random sampling.
     /// @param txId The hash of the transaction we're currently working with.
     /// @return -1 if the other prover hasn't submitted their proofs yet, -2 if a proof that the caller submitted was invalid,
-    /// -3 if a proof that the other prover submitted was invalid, -4 if the prover must call the getNextSecond function.
+    /// -3 if a proof that the other prover submitted was invalid, -4 if the dishonest node couldn't be determined.
     function getNext(bytes32 txId) public returns (int72) {
 	uint8 position = getPosition(txId, msg.sender);
         require(position != 2, "Caller hasn't committed their chain yet.");
 	
 	if (hasResultBeenSet[txId]) {
-	    if (result[txId] == commitments[txId][1-position].txExists) {
-	        emit GetNext(-2);
-		return -2;
+	    if (result[txId] == commitments[txId][position].txExists) {
+	        emit GetNext(-3);
+		return -3;
 	    }
 	    else {
-		emit GetNext(-3);
-	        return -3;
+		emit GetNext(-2);
+	        return -2;
 	    }
-	    delete proversPositions[txId];
 	}
 
         ChainState storage state = chainsStates[txId][position];
-        
-        // If the prover hasn't submitted all their proofs, return the first block that they must provide.
-        if (state.hashes.length < positions[txId].length) {
-	    int72 next = int72(positions[txId][state.hashes.length]);
-	        emit GetNext(next);
-            return next;
-        }
         
         // If at least one proof was invalid
         if (!previousProofsValid[txId][position]) {
             hasResultBeenSet[txId] = true;
             result[txId] = commitments[txId][1 - position].txExists;
-            cleanup(txId);
-	        emit GetNext(-2);
+	    emit GetNext(-2);
             return -2;
         }
         
@@ -431,13 +433,19 @@ contract FlyClient {
         if (!previousProofsValid[txId][1 - position]) {
             hasResultBeenSet[txId] = true;
             result[txId] = commitments[txId][position].txExists;
-            cleanup(txId);
     	    emit GetNext(-3);
             return -3;
         }
         
+	// If the prover hasn't submitted all their proofs, return the first block that they must provide.
+        if (state.hashes.length < positions[txId].length) {
+	    int72 next = int72(positions[txId][state.hashes.length]);
+	    emit GetNext(next);
+            return next;
+        }
+        
         if (chainsStates[txId][1 - position].hashes.length < positions[txId].length) {
-	        emit GetNext(-1);
+	    emit GetNext(-1);
             return -1;
         }
         
@@ -490,41 +498,35 @@ contract FlyClient {
             assert(positions[txId][positions[txId].length - 1] > step);
             newPosition = positions[txId][positions[txId].length - 1] - step;
         }
-        
-        
-        bool hasAlreadyBeenSampled;
-        
-        for (uint i = 0; i < positions[txId].length; i++) {
-            if (positions[txId][i] == newPosition) {
-                hasAlreadyBeenSampled = true;
-                break;
-            }
-        }
+         
+        bool hasAlreadyBeenSampled = hasBeenSampled[txId][newPosition];
         
         // If the next block to be sampled is too big, then there is no merging block.
-        hasAlreadyBeenSampled = hasAlreadyBeenSampled || (positions[txId][positions[txId].length - 1] + step >= commit.chainLength);
+        hasAlreadyBeenSampled = hasAlreadyBeenSampled || (positions[txId][positions[txId].length - 1] + step > commit.chainLength);
         
         if (!hasAlreadyBeenSampled || (hasAlreadyBeenSampled && (firstSamplingSize[txId] == 0))) {
             // We have to start looking for the forking block
             if (hasAlreadyBeenSampled) {
                 newPosition = commit.height - (commit.height / 2);
-		        firstSamplingSize[txId] = uint64(positions[txId].length);
+                firstSamplingSize[txId] = uint64(positions[txId].length);
             }
 
             positions[txId].push(newPosition);
-	        emit GetNext(int72(newPosition));
+	    hasBeenSampled[txId][newPosition] = true;
+	    emit GetNext(int72(newPosition));
             return int72(newPosition);
         } else if (hasGetNextSecondBeenCalled[txId]) {
             // No fake blocks found, but sampling is over. The protocol has to be done once again
             hasResultBeenSet[txId] = true;
-            cleanup(txId);
             hasResultBeenSet[txId] = false;
-	        emit GetNext(-4);
+	    emit GetNext(-4);
             return -4;
         } else {
             hasForkingBeenFound[txId] = true;
-	        getNextSecond(txId);
-            return getNext(txId);
+	    getNextSecond(txId);
+            int72 next = getNext(txId);
+	    emit GetNext(next);
+	    return next;
         }
     }
     
@@ -532,40 +534,66 @@ contract FlyClient {
     /// @notice Provide the prover with the blocks indexes that they must submit to the client to prove their fork is
     /// the main one.
     /// @param txId The hash of the transaction we're currently working with.
-    /// @dev There's a probably more efficient way to sample uniformly.
+    /// @dev There's a probably more efficient and secure way to sample uniformly.
     function getNextSecond(bytes32 txId) public noResultSet(txId) {
         require(hasForkingBeenFound[txId], "Forking block hasn't been found yet.");
-        hasGetNextSecondBeenCalled[txId] = true;
-        uint64 forkingHeight = findForkingHeight(txId);
+        // Mustn't be called by the prover directly
+	assert(!hasGetNextSecondBeenCalled[txId]);
+        uint64 forkingHeight;
+	// TODO: Error is here, gives invalid OPCODE for some reason
+	// If the hashes are equal, the forking block is the one following the last sampled height
+	if (chainsStates[txId][0].hashes[positions[txId].length] == chainsStates[txId][1].hashes[positions[txId].length]) {
+	    forkingHeight = positions[txId][positions[txId].length - 1] + 1;
+	} else {
+	    forkingHeight = positions[txId][positions[txId].length - 1];
+	}
+
         uint64 commonChainLength;
-        
-        if (commitments[txId][0].chainLength <= commitments[txId][1].chainLength) {
+        require(false, "Just before second if");
+	if (commitments[txId][0].chainLength <= commitments[txId][1].chainLength) {
             commonChainLength = commitments[txId][0].chainLength;
         } else {
             commonChainLength = commitments[txId][1].chainLength;
         }
         
-        if (commonChainLength - forkingHeight - 1 <= MAX_SAMPLING_SIZE) {
+	require(false, "Just before third if.");
+
+        if (commonChainLength - forkingHeight - 1 <= MIN_SAMPLING_SIZE) {
             uint64[] memory sampled = new uint64[](commonChainLength - forkingHeight - 1);
             // We already have sampled the block with height forkingHeight, hence we don't consider it in the sampling
             for (uint64 i = forkingHeight + 1; i < commonChainLength; i++) {
-                sampled[i - forkingHeight - 1] = i;
+		if (!hasBeenSampled[txId][i]) {
+                    sampled[i - forkingHeight - 1] = i;
+		}
             }
+	    hasGetNextSecondBeenCalled[txId] = true;
             return;
         }
         
-        bytes32 previousEthereumBlockHash = blockhash(block.number - 1);
-        uint64[] memory sampled = new uint64[](MAX_SAMPLING_SIZE);
-        uint8 step = 32 / MAX_SAMPLING_SIZE;
-        uint64 remainingHeights = commonChainLength - forkingHeight - 1;
-        uint64[] memory possibleSampled = new uint64[](remainingHeights);
+	randomUniformSampling(txId, commonChainLength, forkingHeight);
+	hasGetNextSecondBeenCalled[txId] = true;
+    }
+
+    function randomUniformSampling(bytes32 txId, uint64 commonChainLength, uint64 forkingHeight) private {
+        // Mustn't be called directly by the prover
+	assert(!hasGetNextSecondBeenCalled[txId]);
+	bytes32 previousEthereumBlockHash = blockhash(block.number - 1);
+        uint8 log2n = ceiledLog2(commonChainLength);
+	uint8 step = 32 / log2n;
+        uint64[] memory possibleSampled = new uint64[](commonChainLength - firstSamplingSize[txId]);
         uint maxValue = uint(256) ** step;
-        
+        uint64 index;
+
         for (uint64 i = forkingHeight + 1; i < commonChainLength; i++) {
-            possibleSampled[i - forkingHeight - 1] = i;
+	    if (!hasBeenSampled[txId][i]) {
+                possibleSampled[index] = i;
+		index++;
+	    }
         }
+
+	uint remainingHeights = possibleSampled.length;
         
-        for (uint8 i = 0; i < MAX_SAMPLING_SIZE; i++) {
+        for (uint8 i = 0; i < log2n; i++) {
             uint temp;
             
             for (uint j = 0; j < step; j++) {
@@ -573,70 +601,16 @@ contract FlyClient {
             }
             
             uint sample = temp / (maxValue / remainingHeights);
-            sampled[i] = possibleSampled[sample];
-            remainingHeights -= 1;
+            uint64 newPosition = possibleSampled[sample];
+	    // No need to also update hasBeenSampled this it is not used anymore
+	    positions[txId].push(newPosition);
+	    remainingHeights -= 1;
+	    // Deleting sampled entry
             possibleSampled[sample] = possibleSampled[possibleSampled.length - 1];
             delete possibleSampled[possibleSampled.length - 1];
         }
     }
-    
-    /// @author Tristan NEMOZ
-    /// @notice Finds the last forking block of the chain associated to this transaction, that is the block with
-    /// the largest height such that provers disagree on it but agree on its parent.
-    /// @param txId The hash of the transaction we're currently working with.
-    /// @return The height of the forking block with the largest height.
-    function findForkingHeight(bytes32 txId) public view returns (uint64) {
-        ChainState storage state = chainsStates[txId][0];
-        ChainState storage otherState = chainsStates[txId][1];
-        uint64 minHeight = positions[txId][0];
-        uint64 previousHeight = positions[txId][0];
-        uint64 previousHeightIndex = 0;
-        
-        for (uint64 i = 1; i < positions[txId].length; i++) {
-            if (positions[txId][i] < minHeight) {
-                minHeight = positions[txId][i];
-            }
-            
-            if (positions[txId][i] > previousHeight) {
-                previousHeight = positions[txId][i];
-                previousHeightIndex = i;
-            }
-        }
-        
-        // bool arePreviousHashesEqual = state.hashes[previousHeight] == otherState.hashes[previousHeight];
-        uint64 currentHeight;
-        uint64 currentHeightIndex;
-        
-        for (uint64 i = 1; i < positions[txId].length; i++) {
-            currentHeight = minHeight;
-            
-            // Looking starting from the end of the chain ensures we find the smallest possible fork. Note that
-            // it implies that the forking point is not necessarily the one related to the transaction we're 
-            // working with. However, since the prover is not supposed to have a fork anyway, and since the 
-            // transaction won't be accepted if in doubt (see the else if (hasGetNextSecondBeenCalled[txId]) case
-            // in the getNext function), we are fine doing it like this.
-            for (uint64 j = 0; j < positions[txId].length; j++) {
-                if ((positions[txId][j] > currentHeight) && (positions[txId][j] < previousHeight)) {
-                    currentHeight = positions[txId][j];
-                    currentHeightIndex = j;
-                }
-            }
-            
-            if (
-                (currentHeight == previousHeight + 1) &&
-                (state.hashes[previousHeightIndex] == otherState.hashes[previousHeightIndex]) &&
-                (state.hashes[currentHeightIndex] != otherState.hashes[currentHeightIndex])
-            ) {
-                // The first block of the fork is at height currentHeight
-                return currentHeight;
-            } else {
-                previousHeight = currentHeight;
-                previousHeightIndex = currentHeightIndex;
-            }
-        }
-        assert(false);
-    }
-    
+
     /// @author Tristan NEMOZ
     /// @notice Used to provide the client with the block header it asked for.
     /// @param txId The hash of the transaction we're currently working with.
@@ -671,19 +645,5 @@ contract FlyClient {
         
         // Ensuring that one non-valid proof stays non-valid after submitting other blocks.
         previousProofsValid[txId][position] = isBlockValid && previousProofsValid[txId][position];
-    }
-    
-    /// @author Tristan NEMOZ
-    /// @notice Deletes all remaining data once a proof is over.
-    /// @param txId The hash of the transaction we were working with.
-    function cleanup(bytes32 txId) private {
-        require(hasResultBeenSet[txId], "No result has been found for this transaction.");
-        delete commitments[txId];
-        delete chainsStates[txId];
-        delete previousProofsValid[txId];
-        delete firstSamplingSize[txId];
-        delete hasForkingBeenFound[txId];
-        delete positions[txId];
-        delete hasGetNextSecondBeenCalled[txId];
     }
 }

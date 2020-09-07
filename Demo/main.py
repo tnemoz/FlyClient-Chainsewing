@@ -1,13 +1,18 @@
 from enum import Enum
 import os
+from random import randint
 from threading import Thread, Lock
 
 import solcx
 from termcolor import cprint
 from web3 import HTTPProvider, Web3
 
-#from create_opened_fork_chains import honest_hashes, adversary_hashes, adversary_headers, honest_headers, adversary_blocks
-from create_closed_fork_chains import honest_hashes, adversary_hashes, adversary_headers, honest_headers, adversary_blocks
+CLOSED_FORKS = False
+
+if CLOSED_FORKS:
+    from create_closed_fork_chains import honest_hashes, adversary_hashes, adversary_headers, honest_headers, adversary_blocks
+else:
+    from create_opened_fork_chains import honest_hashes, adversary_hashes, adversary_headers, honest_headers, adversary_blocks
 from mmr import bitcoin_hash, Mmr
 
 
@@ -37,7 +42,12 @@ class Node(Thread):
         self.print("Beginning to commit their chain...")
         containsTx = self.headers[height - 1]
         merkleProof = b""
-        indexTx = 1 if self.is_adversary else 0
+
+        if CLOSED_FORKS:
+            indexTx = 1 if (height <= 100 or height >= 111 or self.is_adversary) else 0
+        else:
+            indexTx = 1 if (height <= 100 or self.is_adversary) else 0
+
         mmrProof = bytes.fromhex(self.mmr.get_path(height))
         chainLength = self.mmr.n
         mmrRoot = bytes.fromhex(self.mmr.root)
@@ -58,7 +68,7 @@ class Node(Thread):
     def submit_block(self):
         assert self.next > 0, "Last return was a return code."
         self.print(f"Submitting block at height {self.next}...")
-        contract.functions.submitBlock(
+        self.contract.functions.submitBlock(
             self.txId,
             self.headers[self.next - 1],
             bytes.fromhex(self.mmr.get_path(self.next))
@@ -67,8 +77,8 @@ class Node(Thread):
 
     def get_next(self):
         self.print("Querying next block to sample...")
-        receipt = w3.eth.waitForTransactionReceipt(
-            contract.functions.getNext(self.txId).transact({"from": self.account})
+        receipt = self.w3.eth.waitForTransactionReceipt(
+            self.contract.functions.getNext(self.txId).transact({"from": self.account})
         )
         # Easy to convert if positive number
         self.print(f"Received data from getNext: {receipt['logs'][0]['data']}.")
@@ -83,16 +93,35 @@ class Node(Thread):
             self.print("The other prover hasn't submitted all their proofs yet.", Level.WARNING)
             self.is_waiting = True
         elif self.next == -4:
-            self.print("Protocol is over: coudl'tn determine which prover is the honest one.", Level.ERROR)
+            self.print("Protocol is over: could'tn determine which prover is the honest one.", Level.ERROR)
         else:
             self.print(f"Received next block to be sampled: {self.next}.", Level.SUCCESS)
             self.is_waiting = False
     
+    def verify(self):
+        self.print("Checking whether the other prover agrees.")
+        try:
+            receipt = self.w3.eth.waitForTransactionReceipt(
+                self.contract.functions.verify(self.txId).transact({'from': self.account})
+            )
+        except ValueError as e:
+            if "A result already has been determined for this transaction." in e.args[0]["message"]:
+                return 1
+            raise e
+
+        self.print(f"Received data from verify: {receipt['logs'][0]['data']}.")
+        data = int(receipt['logs'][0]['data'], 16)
+        data = data if data < pow(2, 255) else data - pow(2, 256)
+        self.is_waiting = data != 0
+        
+        return data
+
+
     def print(self, message, level=Level.NORMAL):
         prefix = "Adversary" if self.is_adversary else "Honest"
 
         if level == Level.NORMAL:
-            to_print = f"[{prefix} ] {message}"
+            to_print = f"[{prefix}  ] {message}"
             color = None
         elif level == Level.ERROR:
             to_print = f"[{prefix} -] {message}"
@@ -109,6 +138,16 @@ class Node(Thread):
         self.print_lock.release()
     
     def run(self):
+        # Waiting for other prover's commit
+        while (verify := self.verify()) == -1:
+            pass
+
+        if verify == 1:
+            self.print("Agreeing with the other prover on the transaction's inclusion.", Level.SUCCESS)
+            return
+        
+        self.print("Doesn't agreeing with the other prover. Launching protocol.", Level.WARNING)
+
         while True:
             self.get_next()
 
@@ -144,34 +183,67 @@ contract = w3.eth.contract(
 )
 
 # With HEIGHT >= 101, provers disagree
-HEIGHT = 101
+# In the case of a closed fork, for HEIGHT >= 110, even though the provers
+# disagree on the MMR proof of inclusion of the block, they agree on the
+# transaction. Hence, the protocol stops immediately.
+HEIGHT = 105
 TXID = adversary_blocks[HEIGHT - 1][35+32:35:-1] 
 
 print_lock = Lock()
-adversary = Node(
-    w3.eth.accounts[1],
-    adversary_hashes,
-    adversary_headers, 
-    HEIGHT,
-    TXID,
-    True,
-    w3,
-    contract,
-    print_lock
-)
-honest = Node(
-    w3.eth.accounts[2],
-    honest_hashes,
-    honest_headers,
-    HEIGHT,
-    TXID,
-    False,
-    w3,
-    contract,
-    print_lock
-)
 
-adversary.start()
-honest.start()
+if randint(0, 1):
+    adversary = Node(
+        w3.eth.accounts[1],
+        adversary_hashes,
+        adversary_headers, 
+        HEIGHT,
+        TXID,
+        True,
+        w3,
+        contract,
+        print_lock
+    )
+    honest = Node(
+        w3.eth.accounts[2],
+        honest_hashes,
+        honest_headers,
+        HEIGHT,
+        TXID,
+        False,
+        w3,
+        contract,
+        print_lock
+    )
+else:
+    honest = Node(
+        w3.eth.accounts[2],
+        honest_hashes,
+        honest_headers,
+        HEIGHT,
+        TXID,
+        False,
+        w3,
+        contract,
+        print_lock
+    )
+    adversary = Node(
+        w3.eth.accounts[1],
+        adversary_hashes,
+        adversary_headers, 
+        HEIGHT,
+        TXID,
+        True,
+        w3,
+        contract,
+        print_lock
+    )
+
+if randint(0, 1):
+    adversary.start()
+    honest.start()
+else:
+    honest.start()
+    adversary.start()
+
 adversary.join()
 honest.join()

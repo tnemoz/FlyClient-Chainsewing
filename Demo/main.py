@@ -2,6 +2,8 @@ from enum import Enum
 import os
 from threading import Thread, Lock
 
+import matplotlib.pyplot as plt
+import numpy as np
 import solcx
 from termcolor import cprint
 from web3 import HTTPProvider, Web3
@@ -223,3 +225,9 @@ honest.start()
 
 adversary.join()
 honest.join()
+
+plt.figure()
+plt.plot(np.linspace(0, 1, len(adversary.gases)), np.cumsum(adversary.gases), label="Adversary")
+plt.plot(np.linspace(0, 1, len(honest.gases)), np.cumsum(honest.gases), label="Honest")
+plt.legend()
+plt.show()

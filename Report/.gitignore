@@ -1,7 +1,6 @@
 # Not staging files created by compilation
 main-blx.bib
 *.aux
-*.pdf
 *.log
 *.bbl
 *.blg

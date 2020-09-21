@@ -433,8 +433,7 @@ contract FlyClient {
         }
         
         if (chainsStates[txId][1 - position].hashes.length < positions[txId].length) {
-	    emit GetNext(-1);
-            
+	    emit GetNext(-1);    
 	    return -1;
         }
         
@@ -548,12 +547,10 @@ contract FlyClient {
         }
         
         if (commonChainLength - forkingHeight - 1 <= MIN_SAMPLING_SIZE) {
-            uint64[] memory sampled = new uint64[](commonChainLength - forkingHeight - 1);
-            
 	    // We already have sampled the block with height forkingHeight, hence we don't consider it in the sampling
             for (uint64 i = forkingHeight + 1; i < commonChainLength; i++) {
 		if (!hasBeenSampled[txId][i]) {
-                    sampled[i - forkingHeight - 1] = i;
+                    positions[txId].push(i);
 		}
             }
 	    
@@ -569,7 +566,8 @@ contract FlyClient {
     function randomUniformSampling(bytes32 txId, uint64 commonChainLength, uint64 forkingHeight) private {
         // Mustn't be called directly by the prover
 	assert(!hasGetNextSecondBeenCalled[txId]);
-	bytes32 previousEthereumBlockHash = blockhash(block.number - 1);
+	//bytes32 previousEthereumBlockHash = blockhash(block.number - 1);
+	bytes32 previousEthereumBlockHash = 0x64cf7d781a29db866ef03bf07d6a4f0e654e3ba2bd0d5da75909da1c9a8420c3;
 	uint64 forkLength = commonChainLength - firstSamplingSize[txId];
         uint8 log2n = ceiledLog2(forkLength);
 
@@ -589,8 +587,6 @@ contract FlyClient {
 	    }
         }
 	
-	require(remainingHeights <= forkLength, "remaningHeights > forkLength, fck off");
-
         for (uint8 i = 0; i < log2n; i++) {
             uint temp;
             
@@ -614,6 +610,7 @@ contract FlyClient {
     /// @param txId The hash of the transaction we're currently working with.
     /// @param header The block header the client asked for.
     /// @param mmrProof The MMR proof of inclusion of the block header.
+    /// @dev It would be more efficient to use a mapping/struct rather than using a for loop
     function submitBlock(bytes32 txId, bytes memory header, bytes memory mmrProof) public noResultSet(txId) {
         uint8 position = getPosition(txId, msg.sender);
         require(position != 2, "Caller hasn't committed their chain yet.");
